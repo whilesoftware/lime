@@ -228,7 +228,11 @@ class ImageDataUtil {
 		var b = (color & 0x000000FF);
 		
 		var rgba = (r | (g << 8) | (b << 16) | (a << 24));
+		#if html5
 		var data = image.buffer.data;
+		#else
+		var data:ByteArray = image.buffer.data.buffer;
+		#end
 		
 		if (rect.width == image.buffer.width && rect.height == image.buffer.height && rect.x == 0 && rect.y == 0 && image.offsetX == 0 && image.offsetY == 0) {
 			
@@ -242,7 +246,8 @@ class ImageDataUtil {
 				data[i + 2] = b;
 				data[i + 3] = a;
 				#else
-				data.setUInt32 (i * 4, rgba);
+				data.position = i * 4;
+				data.writeInt (rgba);
 				#end
 				
 			}
@@ -269,7 +274,8 @@ class ImageDataUtil {
 					data[offset + 2] = b;
 					data[offset + 3] = a;
 					#else
-					data.setUInt32 (offset, rgba);
+					data.position = offset;
+					data.writeInt (rgba);
 					#end
 					
 				}

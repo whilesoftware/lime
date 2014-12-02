@@ -1,4 +1,35 @@
-package lime.utils;
+package lime.utils; #if !js
+
+
+@:allow(lime.utils)
+@:allow(lime.graphics)
+
+
+class ArrayBufferView {
+	
+	
+	private var buffer:ArrayBuffer;
+	private var byteOffset:Int;
+	private var length:Int;
+	
+	
+	private function new () {
+		
+		
+		
+	}
+	
+	
+}
+
+
+
+#else
+typedef ArrayBufferView = js.html.ArrayBufferView;
+#end
+
+
+/*package lime.utils;
 #if js
 typedef ArrayBufferView = js.html.ArrayBufferView;
 #else
@@ -281,4 +312,4 @@ import haxe.io.BytesData;
 }
 
 
-#end
+#end*/
