@@ -47,12 +47,12 @@ int InitSDL()
    #endif
    int err = SDL_Init(SDL_INIT_VIDEO | audioFlag | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER);
   
-/* 
+ 
    if (err == 0 && SDL_InitSubSystem (SDL_INIT_JOYSTICK) == 0)
    {
       sgJoystickEnabled = true;
    }
-  */ 
+   
    return err;
 }
 
