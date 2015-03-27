@@ -47,6 +47,12 @@ enum EventType
    
    etRenderContextLost, // 32
    etRenderContextRestored, // 33
+
+   etGamepadAxisMove, // 34
+   etGamepadButtonDown, // 35
+   etGamepadButtonUp, // 36
+   etGamepadConnect, // 37
+   etGamepadDisconnect, // 38
 };
 
 enum EventFlags

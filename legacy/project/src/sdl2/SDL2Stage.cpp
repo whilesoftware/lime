@@ -45,13 +45,14 @@ int InitSDL()
    #else
    int audioFlag = 0;
    #endif
-   int err = SDL_Init(SDL_INIT_VIDEO | audioFlag | SDL_INIT_TIMER);
-   
+   int err = SDL_Init(SDL_INIT_VIDEO | audioFlag | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER);
+  
+/* 
    if (err == 0 && SDL_InitSubSystem (SDL_INIT_JOYSTICK) == 0)
    {
       sgJoystickEnabled = true;
    }
-   
+  */ 
    return err;
 }
 
@@ -1112,6 +1113,72 @@ void AddCharCode(Event &key)
 
 std::map<int,wchar_t> sLastUnicode;
 
+	std::map<int, SDL_GameController*> gameControllers = std::map<int, SDL_GameController*> ();
+	std::map<int, int> gameControllerIDs = std::map<int, int> ();
+	
+	
+	bool SDLGamepad__Connect (int deviceID) {
+		
+		if (SDL_IsGameController (deviceID)) {
+			
+			SDL_GameController *gameController = SDL_GameControllerOpen (deviceID);
+			
+			if (gameController) {
+				
+				SDL_Joystick *joystick = SDL_GameControllerGetJoystick (gameController);
+				int id = SDL_JoystickInstanceID (joystick);
+				
+				gameControllers[id] = gameController;
+				gameControllerIDs[deviceID] = id;
+				
+				return true;
+				
+			}
+			
+		}
+		
+		return false;
+		
+	}
+	
+	
+	bool SDLGamepad__Disconnect (int id) {
+		
+		if (gameControllers.find (id) != gameControllers.end ()) {
+			
+			SDL_GameController *gameController = gameControllers[id];
+			SDL_GameControllerClose (gameController);
+			gameControllers.erase (id);
+			
+			return true;
+		}
+		
+		return false;
+	}
+	
+	
+	int SDLGamepad__GetInstanceID (int deviceID) {
+		
+		return gameControllerIDs[deviceID];
+		
+	}
+	
+	
+	const char* Gamepad__GetDeviceGUID (int id) {
+		
+		char* guid = new char[64];
+		SDL_JoystickGetGUIDString (SDL_JoystickGetDeviceGUID (id), guid, 64);
+		return guid;
+		
+	}
+	
+	
+	const char* Gamepad__GetDeviceName (int id) {
+		
+		return SDL_GameControllerName (gameControllers[id]);
+		
+	}
+
 
 void ProcessEvent(SDL_Event &inEvent)
 {
@@ -1398,8 +1465,66 @@ void ProcessEvent(SDL_Event &inEvent)
          sgSDLFrame->ProcessEvent(joystick);
          break;
       }
+
+		/// JAM - pick back up here
+		///     - still need to clean up these cases so they properly interpret the gamecontroller events
+
+		case SDL_CONTROLLERAXISMOTION:
+		{
+			Event gamepadEvent(etGamepadAxisMove);
+
+			gamepadEvent.id = inEvent.caxis.which;
+			gamepadEvent.code = inEvent.caxis.axis;
+			gamepadEvent.scaleX = inEvent.caxis.value / 32768.0f;
+			
+			sgSDLFrame->ProcessEvent(gamepadEvent);
+			break;
+		}
+		case SDL_CONTROLLERBUTTONDOWN:
+		{
+			Event gamepadEvent(etGamepadButtonDown);
+			
+			gamepadEvent.id = inEvent.cbutton.which;
+			gamepadEvent.code = inEvent.cbutton.button;
+			
+			sgSDLFrame->ProcessEvent(gamepadEvent);
+			break;
+		}
+		case SDL_CONTROLLERBUTTONUP:
+		{
+			Event gamepadEvent(etGamepadButtonUp);
+			
+			gamepadEvent.id = inEvent.cbutton.which;
+			gamepadEvent.code = inEvent.cbutton.button;
+			
+			sgSDLFrame->ProcessEvent(gamepadEvent);
+			break;
+		}
+		case SDL_CONTROLLERDEVICEADDED:
+		{
+			Event gamepadEvent(etGamepadConnect);
+
+			if (SDLGamepad__Connect (inEvent.cdevice.which)) {
+				gamepadEvent.id = SDLGamepad__GetInstanceID (inEvent.cdevice.which);
+				
+				sgSDLFrame->ProcessEvent(gamepadEvent);
+			}
+			
+			break;
+		}
+		case SDL_CONTROLLERDEVICEREMOVED:
+		{
+			Event gamepadEvent(etGamepadDisconnect);
+			
+			gamepadEvent.id = inEvent.cdevice.which;
+			
+			SDLGamepad__Disconnect (inEvent.cdevice.which);
+			sgSDLFrame->ProcessEvent(gamepadEvent);
+			break;
+		}	
    }
 };
+
 
 
 void CreateMainFrame(FrameCreationCallback inOnFrame, int inWidth, int inHeight, unsigned int inFlags, const char *inTitle, Surface *inIcon)
