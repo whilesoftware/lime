@@ -304,9 +304,12 @@ class MainView extends GLSurfaceView {
 		
 		if ((event.getSource () & InputDevice.SOURCE_CLASS_JOYSTICK) != 0 && event.getAction () == MotionEvent.ACTION_MOVE) {
 			
+
 			final MainView me = this;
 			final InputDevice device = event.getDevice ();
 			final int deviceId = event.getDeviceId ();
+
+			Log.e("trace","onGenericMotionEvent: " + deviceId );
 			
 			int[] axisList = {
 				
@@ -352,8 +355,10 @@ class MainView extends GLSurfaceView {
 	@Override public boolean onKeyDown (final int inKeyCode, KeyEvent event) {
 		
 		final MainView me = this;
+
+		Log.e("trace","onKeyDown: " + event.getDeviceId() + " - " + inKeyCode);
 		
-		::if (ANDROID_TARGET_SDK_VERSION > 11)::if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1 && (event.isGamepadButton (inKeyCode) || (inKeyCode >= 19 && inKeyCode <=22))) {
+		::if (ANDROID_TARGET_SDK_VERSION > 11)::if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1 ) {
 			
 			if (event.getRepeatCount () == 0) {
 				
@@ -406,8 +411,10 @@ class MainView extends GLSurfaceView {
 	@Override public boolean onKeyUp (final int inKeyCode, KeyEvent event) {
 		
 		final MainView me = this;
+
+		Log.e("trace","onKeyUp: " + event.getDeviceId() + " - " + inKeyCode);
 		
-		::if (ANDROID_TARGET_SDK_VERSION > 11)::if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1 && (event.isGamepadButton (inKeyCode) || (inKeyCode >= 19 && inKeyCode <=22))) {
+		::if (ANDROID_TARGET_SDK_VERSION > 11)::if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1 ) {
 			
 			if (event.getRepeatCount () == 0) {
 				

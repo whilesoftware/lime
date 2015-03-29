@@ -7,6 +7,7 @@
 #include <jni.h>
 #include <ByteArray.h>
 #include <Sound.h>
+#include <map>
 
 #include <android/log.h>
 #include "AndroidCommon.h"
@@ -200,8 +201,11 @@ class AndroidStage : public Stage
 {
     
 public:
+   std::map<int, int> gameControllerIDs;
+
    AndroidStage(int inWidth,int inHeight,int inFlags) : Stage(true)
    {
+      gameControllerIDs = std::map<int, int> ();
       mHardwareRenderer = HardwareRenderer::CreateOpenGL(0, 0, inFlags & (wfAllowShaders|wfRequireShaders));
       mHardwareRenderer->IncRef();
       mHardwareRenderer->SetWindowSize(inWidth,inHeight);
@@ -343,21 +347,184 @@ public:
       HandleEvent(key);
    }
 
+   // we don't get connect or disconnect events in legacy android
+   // therefore, we generate synthetic connect events here
+   void GamepadConnectIfNotAlreadyPresent(int deviceID) {
+      if (gameControllerIDs.find(deviceID) == gameControllerIDs.end()) {
+         gameControllerIDs[deviceID] = 0;
+
+         Event gamepadEvent(etGamepadConnect);
+
+         gamepadEvent.id = deviceID;
+         HandleEvent(gamepadEvent);
+      }
+   }	
+
+   // gamepad buttons going up and down
    void OnJoy(int inDeviceId, int inCode, bool inDown)
    {
-      //__android_log_print(ANDROID_LOG_INFO, "NME", "OnJoy %d %d %d", inDeviceId, inCode, inDown);
-      Event joystick( inDown ? etJoyButtonDown : etJoyButtonUp );
+      GamepadConnectIfNotAlreadyPresent(inDeviceId);
+
+      __android_log_print(ANDROID_LOG_INFO, "trace", "NME::sStage->OnJoy %d %d %d", inDeviceId, inCode, inDown);
+      Event joystick( inDown ? etGamepadButtonDown : etGamepadButtonUp );
       joystick.id = inDeviceId;
+
+      // translate the inCode into the button codes emitted by the GameController API
+
+      // NOTE - these values are specific to the nvidia shield tablet wireless controller
+      switch(inCode) {
+         case 96:	// A Button
+            inCode = 0;
+            break;
+         case 97:	// B Button
+            inCode = 1;
+            break;
+         case 99:	// X Button
+            inCode = 2;
+            break;
+         case 100:	// Y Button
+            inCode = 3;
+            break;
+         case 103:	// RIGHT_SHOULDER
+            inCode = 10;
+            break;
+         case 102:	// LEFT_SHOULDER
+            inCode = 9;
+            break;
+         case 106:	// LEFT_STICK
+            inCode = 7;
+            break;
+         case 107:	// RIGHT_STICK
+            inCode = 8;
+            break;
+      }
+
+      // bounds checking
+      if (inCode > 14 || inCode < 0) {
+         return;
+      }
+
       joystick.code = inCode;
       HandleEvent(joystick);
    }
    
+   // gamepad axes moving
    void OnJoyMotion(int inDeviceId, int inAxis, float inValue)
    {
-      Event joystick(etJoyAxisMove);
+      GamepadConnectIfNotAlreadyPresent(inDeviceId);
+
+      __android_log_print(ANDROID_LOG_INFO, "trace", "NME::sStage->OnJoyMotion %d %d %f", inDeviceId, inAxis, inValue);
+
+      // is this the dpad or a real axis?
+      if (inAxis == 15 || inAxis == 16) {
+         // this is the dpad
+         // convert the inValue to an on/off state for the appropriate buttons
+         nme::EventType event_type = (inValue < -10 || inValue > 10) ? etGamepadButtonDown : etGamepadButtonUp; 
+         Event gp_event(event_type);
+         gp_event.id = inDeviceId;
+
+         // which button axis was it?
+         if (inAxis == 15) {
+             if (event_type == etGamepadButtonDown) {
+                // left or right?
+                if (inValue < 0) {
+                   gp_event.code = 13;
+                   HandleEvent(gp_event);
+
+                   // HACK - also send the button up event for right
+                   gp_event.type = etGamepadButtonUp;
+                   gp_event.code = 14;
+                   HandleEvent(gp_event);
+                }else{
+                   gp_event.code = 14;
+                   HandleEvent(gp_event);
+
+                   // HACK - also send the button up event for left
+                   gp_event.type = etGamepadButtonUp;
+                   gp_event.code = 13;
+                   HandleEvent(gp_event);
+                }
+             }else{
+                   // HACK - send button up events for left AND right
+                   gp_event.code = 14;
+                   HandleEvent(gp_event);
+                   gp_event.code = 13;
+                   HandleEvent(gp_event);
+             }
+         }
+         if (inAxis == 16) {
+             if (event_type == etGamepadButtonDown) {
+                // up or down?
+                // NOTE - the up button reports negative values and the down button reports positive values
+                if (inValue > 0) {
+                   gp_event.code = 12;
+                   HandleEvent(gp_event);
+
+                   // HACK - also send the button up event for up
+                   gp_event.type = etGamepadButtonUp;
+                   gp_event.code = 11;
+                   HandleEvent(gp_event);
+                }else{
+                   gp_event.code = 11;
+                   HandleEvent(gp_event);
+
+                   // HACK - also send the button up event for left
+                   gp_event.type = etGamepadButtonUp;
+                   gp_event.code = 12;
+                   HandleEvent(gp_event);
+                }
+             }else{
+                   // HACK - send button up events for left AND right
+                   gp_event.code = 11;
+                   HandleEvent(gp_event);
+                   gp_event.code = 12;
+                   HandleEvent(gp_event);
+             }
+         }
+
+         return;
+      }
+
+
+      Event joystick(etGamepadAxisMove);
       joystick.id = inDeviceId;
+
+      // map the axes to the appropriate values
+      switch(inAxis) {
+         case 0:	// left joystick x
+            inAxis = 0;
+            break;
+         case 1:	// left joystick y
+            inAxis = 1;
+            break;
+         case 11:	// right joystick x
+            inAxis = 2;
+            break;
+         case 14:	// right joystick y
+            inAxis = 3;
+            break;
+         case 17:	// left trigger
+            inAxis = 4;
+            inValue = inValue / 2.0f + (32767.0f / 2.0f);
+            break;
+         case 18:	// right trigger
+            inAxis = 5;
+            inValue = inValue / 2.0f + (32767.0f / 2.0f);
+            break;
+      }
+
+      // bounds checking
+      if (inAxis < 0 || inAxis > 5) {
+         return;
+      }
+
+      inValue /= 32768.0f;
+
+      __android_log_print(ANDROID_LOG_INFO, "trace", "axis movement event: %d %d %f", inDeviceId, inAxis, inValue);
+
       joystick.code = inAxis;
-      joystick.value = inValue;
+      // we use scaleX in the backported lime gamepad API
+      joystick.scaleX = inValue;
       HandleEvent(joystick);
    }
    
