@@ -1,6 +1,7 @@
 package lime.audio;
 
 
+import haxe.Timer;
 import lime.app.Event;
 import lime.audio.openal.AL;
 
@@ -16,25 +17,37 @@ class AudioSource {
 	
 	public var buffer:AudioBuffer;
 	public var gain (get, set):Float;
+	public var loops:Int;
 	public var timeOffset (get, set):Int;
 	
 	private var id:UInt;
+	private var playing:Bool;
 	private var pauseTime:Int;
 	
 	#if flash
 	private var channel:SoundChannel;
 	#end
 	
+	#if (cpp || neko)
+	private var timer:Timer;
+	#end
 	
-	public function new (buffer:AudioBuffer = null) {
+	
+	public function new (buffer:AudioBuffer = null, timeOffset:Int = 0, loops:Int = 0) {
 		
 		this.buffer = buffer;
+		this.loops = loops;
 		id = 0;
-		pauseTime = 0;
 		
 		if (buffer != null) {
 			
 			init ();
+			
+		}
+		
+		if (timeOffset > 0) {
+			
+			this.timeOffset = timeOffset;
 			
 		}
 		
@@ -103,7 +116,26 @@ class AudioSource {
 			
 		#else
 			
+			if (playing) {
+				
+				return;
+				
+			}
+			
 			AL.sourcePlay (id);
+			playing = true;
+			
+			if (timer != null) {
+				
+				timer.stop ();
+				
+			}
+			
+			var samples = (buffer.data.length * 8) / (buffer.channels * buffer.bitsPerSample);
+			var duration = (samples / buffer.sampleRate * 1000) - timeOffset;
+			
+			timer = new Timer (duration);
+			timer.run = timer_onRun;
 			
 		#end
 		
@@ -124,7 +156,14 @@ class AudioSource {
 			
 		#else
 			
+			playing = false;
 			AL.sourcePause (id);
+			
+			if (timer != null) {
+				
+				timer.stop ();
+				
+			}
 			
 		#end
 		
@@ -141,8 +180,46 @@ class AudioSource {
 			
 		#else
 			
+			playing = false;
 			AL.sourceStop (id);
 			
+			if (timer != null) {
+				
+				timer.stop ();
+				
+			}
+			
+		#end
+		
+	}
+	
+	
+	
+	
+	// Event Handlers
+	
+	
+	
+	
+	private function timer_onRun () {
+		
+		#if (!flash && !html5)
+		
+		if (loops > 0) {
+			
+			loops--;
+			AL.sourcePlay (id);
+			
+		} else {
+			
+			AL.sourceStop (id);
+			timer.stop ();
+			playing = false;
+			
+		}
+		
+		onComplete.dispatch ();
+		
 		#end
 		
 	}
@@ -220,22 +297,27 @@ class AudioSource {
 		
 		#if html5
 		
-		return 0;
+		return pauseTime = value;
 		
 		#elseif flash
 			
 			// TODO: create new sound channel
 			//channel.position = value;
-			return value;
+			return pauseTime = value;
 			
 		#else
 			
-			AL.sourcef (id, AL.SEC_OFFSET, value / 1000);
+			if (buffer != null) {
+				
+				AL.sourceRewind (id);
+				AL.sourcef (id, AL.SEC_OFFSET, value / 1000);
+				
+			}
+			
 			return value;
 			
 		#end
 		
 	}
-	
 	
 }
