@@ -27,18 +27,21 @@ class NativeApplication {
 	private var keyEventInfo = new KeyEventInfo ();
 	private var mouseEventInfo = new MouseEventInfo ();
 	private var renderEventInfo = new RenderEventInfo (RENDER);
+	private var textEventInfo = new TextEventInfo ();
 	private var touchEventInfo = new TouchEventInfo ();
 	private var updateEventInfo = new UpdateEventInfo ();
 	private var windowEventInfo = new WindowEventInfo ();
 	
 	public var handle:Dynamic;
 	
+	private var frameRate:Float;
 	private var parent:Application;
 	
 	
 	public function new (parent:Application):Void {
 		
 		this.parent = parent;
+		frameRate = 60;
 		
 		AudioManager.init ();
 		
@@ -53,6 +56,7 @@ class NativeApplication {
 		
 		if (config != null) {
 			
+			setFrameRate (config.fps);
 			var window = new Window (config);
 			var renderer = new Renderer (window);
 			parent.addWindow (window);
@@ -70,6 +74,7 @@ class NativeApplication {
 		lime_key_event_manager_register (handleKeyEvent, keyEventInfo);
 		lime_mouse_event_manager_register (handleMouseEvent, mouseEventInfo);
 		lime_render_event_manager_register (handleRenderEvent, renderEventInfo);
+		lime_text_event_manager_register (handleTextEvent, textEventInfo);
 		lime_touch_event_manager_register (handleTouchEvent, touchEventInfo);
 		lime_update_event_manager_register (handleUpdateEvent, updateEventInfo);
 		lime_window_event_manager_register (handleWindowEvent, windowEventInfo);
@@ -99,13 +104,22 @@ class NativeApplication {
 		
 		#elseif (cpp || neko)
 		
-		return lime_application_exec (handle);
+		var result = lime_application_exec (handle);
+		__cleanup ();
+		return result;
 		
 		#else
 		
 		return 0;
 		
 		#end
+		
+	}
+	
+	
+	public function getFrameRate ():Float {
+		
+		return frameRate;
 		
 	}
 	
@@ -209,6 +223,7 @@ class NativeApplication {
 				
 				case RENDER:
 					
+					parent.renderer.render ();
 					parent.renderer.onRender.dispatch (parent.renderer.context);
 					parent.renderer.flip ();
 					
@@ -222,12 +237,35 @@ class NativeApplication {
 					#if lime_console
 					parent.renderer.context = CONSOLE (new ConsoleRenderContext ());
 					#else
-					parent.renderer.context = OPENGL (new GLRenderContext ());
+					if (parent.config.hardware) {
+						
+						parent.renderer.context = OPENGL (new GLRenderContext ());
+						
+					}
 					#end
 					
 					parent.renderer.onRenderContextRestored.dispatch (parent.renderer.context);
 				
 			}
+			
+		}
+		
+	}
+	
+	
+	private function handleTextEvent ():Void {
+		
+		switch (textEventInfo.type) {
+			
+			case TEXT_INPUT:
+				
+				parent.window.onTextInput.dispatch (textEventInfo.text);
+			
+			case TEXT_EDIT:
+				
+				parent.window.onTextEdit.dispatch (textEventInfo.text, textEventInfo.start, textEventInfo.length);
+			
+			default:
 			
 		}
 		
@@ -333,6 +371,14 @@ class NativeApplication {
 	}
 	
 	
+	public function setFrameRate (value:Float):Float {
+		
+		lime_application_set_frame_rate (handle, value);
+		return frameRate = value;
+		
+	}
+	
+	
 	private function updateTimer ():Void {
 		
 		if (Timer.sRunningTimers.length > 0) {
@@ -383,12 +429,14 @@ class NativeApplication {
 	private static var lime_application_create = System.load ("lime", "lime_application_create", 1);
 	private static var lime_application_exec = System.load ("lime", "lime_application_exec", 1);
 	private static var lime_application_init = System.load ("lime", "lime_application_init", 1);
+	private static var lime_application_set_frame_rate = System.load ("lime", "lime_application_set_frame_rate", 2);
 	private static var lime_application_update = System.load ("lime", "lime_application_update", 1);
 	private static var lime_application_quit = System.load ("lime", "lime_application_quit", 1);
 	private static var lime_gamepad_event_manager_register = System.load ("lime", "lime_gamepad_event_manager_register", 2);
 	private static var lime_key_event_manager_register = System.load ("lime", "lime_key_event_manager_register", 2);
 	private static var lime_mouse_event_manager_register = System.load ("lime", "lime_mouse_event_manager_register", 2);
 	private static var lime_render_event_manager_register = System.load ("lime", "lime_render_event_manager_register", 2);
+	private static var lime_text_event_manager_register = System.load ("lime", "lime_text_event_manager_register", 2);
 	private static var lime_touch_event_manager_register = System.load ("lime", "lime_touch_event_manager_register", 2);
 	private static var lime_update_event_manager_register = System.load ("lime", "lime_update_event_manager_register", 2);
 	private static var lime_window_event_manager_register = System.load ("lime", "lime_window_event_manager_register", 2);
@@ -548,6 +596,44 @@ private class RenderEventInfo {
 	var RENDER = 0;
 	var RENDER_CONTEXT_LOST = 1;
 	var RENDER_CONTEXT_RESTORED = 2;
+	
+}
+
+
+private class TextEventInfo {
+	
+	
+	public var id:Int;
+	public var length:Int;
+	public var start:Int;
+	public var text:String;
+	public var type:TextEventType;
+	
+	
+	public function new (type:TextEventType = null, text:String = "", start:Int = 0, length:Int = 0) {
+		
+		this.type = type;
+		this.text = text;
+		this.start = start;
+		this.length = length;
+		
+	}
+	
+	
+	public function clone ():TextEventInfo {
+		
+		return new TextEventInfo (type, text, start, length);
+		
+	}
+	
+	
+}
+
+
+@:enum private abstract TextEventType(Int) {
+	
+	var TEXT_INPUT = 0;
+	var TEXT_EDIT = 1;
 	
 }
 

@@ -2,8 +2,10 @@ package lime.graphics.utils;
 
 
 import haxe.ds.Vector;
+import haxe.io.Bytes;
 import lime.graphics.Image;
 import lime.graphics.ImageBuffer;
+import lime.graphics.PixelFormat;
 import lime.math.ColorMatrix;
 import lime.math.Rectangle;
 import lime.math.Vector2;
@@ -302,14 +304,14 @@ class ImageDataUtil {
 					
 					j = i * 4;
 					
-					#if js
+					//#if js
 					data[j + 0] = r;
 					data[j + 1] = g;
 					data[j + 2] = b;
 					data[j + 3] = a;
-					#else
-					data.setUInt32 (j, rgba);
-					#end
+					//#else
+					//data.setUInt32 (j, rgba);
+					//#end
 					
 				}
 				
@@ -329,14 +331,14 @@ class ImageDataUtil {
 						
 						offset = (row * stride) + (column * 4);
 						
-						#if js
+						//#if js
 						data[offset] = r;
 						data[offset + 1] = g;
 						data[offset + 2] = b;
 						data[offset + 3] = a;
-						#else
-						data.setUInt32 (offset, rgba);
-						#end
+						//#else
+						//data.setUInt32 (offset, rgba);
+						//#end
 						
 					}
 					
@@ -675,7 +677,7 @@ class ImageDataUtil {
 		#end
 		
 		#if ((cpp || neko) && !disable_cffi)
-		if (!System.disableCFFI) byteArray = lime_image_data_util_get_pixels (image, rect, format == ARGB ? 1 : 0); else
+		if (!System.disableCFFI) lime_image_data_util_get_pixels (image, rect, format, byteArray); else
 		#end
 		{
 			
@@ -805,7 +807,7 @@ class ImageDataUtil {
 	public static function multiplyAlpha (image:Image):Void {
 		
 		var data = image.buffer.data;
-		if (data == null) return;
+		if (data == null || !image.buffer.transparent) return;
 		
 		#if ((cpp || neko) && !disable_cffi)
 		if (!System.disableCFFI) lime_image_data_util_multiply_alpha (image); else
@@ -935,11 +937,100 @@ class ImageDataUtil {
 	}
 	
 	
+	public static function setFormat (image:Image, format:PixelFormat):Void {
+		
+		var data = image.buffer.data;
+		if (data == null) return;
+		
+		#if ((cpp || neko) && !disable_cffi)
+		if (!System.disableCFFI) lime_image_data_util_set_format (image, format); else
+		#end
+		{
+			
+			var index, a16;
+			var length = Std.int (data.length / 4);
+			var r1, g1, b1, a1, r2, g2, b2, a2;
+			var r, g, b, a;
+			
+			switch (image.format) {
+				
+				case RGBA:
+					
+					r1 = 0;
+					g1 = 1;
+					b1 = 2;
+					a1 = 3;
+				
+				case ARGB:
+					
+					r1 = 1;
+					g1 = 2;
+					b1 = 3;
+					a1 = 0;
+				
+				case BGRA:
+					
+					r1 = 2;
+					g1 = 1;
+					b1 = 0;
+					a1 = 3;
+				
+			}
+			
+			switch (format) {
+				
+				case RGBA:
+					
+					r2 = 0;
+					g2 = 1;
+					b2 = 2;
+					a2 = 3;
+				
+				case ARGB:
+					
+					r2 = 1;
+					g2 = 2;
+					b2 = 3;
+					a2 = 0;
+				
+				case BGRA:
+					
+					r2 = 2;
+					g2 = 1;
+					b2 = 0;
+					a2 = 3;
+				
+			}
+			
+			for (i in 0...length) {
+				
+				index = i * 4;
+				
+				r = data[index + r1];
+				g = data[index + g1];
+				b = data[index + b1];
+				a = data[index + a1];
+				
+				data[index + r2] = r;
+				data[index + g2] = g;
+				data[index + b2] = b;
+				data[index + a2] = a;
+				
+			}
+			
+		}
+		
+		image.buffer.format = format;
+		image.dirty = true;
+		
+	}
+	
+	
 	public static function setPixel (image:Image, x:Int, y:Int, color:Int, format:PixelFormat):Void {
 		
 		var data = image.buffer.data;
 		var offset = (4 * (y + image.offsetY) * image.buffer.width + (x + image.offsetX) * 4);
-		if (format == null || format == RGBA) color = color >> 8;
+		if (format == RGBA) color = color >> 8;
 		
 		data[offset] = (color & 0xFF0000) >>> 16;
 		data[offset + 1] = (color & 0x00FF00) >>> 8;
@@ -1000,7 +1091,7 @@ class ImageDataUtil {
 		if (image.buffer.data == null) return;
 		
 		#if ((cpp || neko) && !disable_cffi)
-		if (!System.disableCFFI) lime_image_data_util_set_pixels (image, rect, byteArray, format == ARGB ? 1 : 0); else
+		if (!System.disableCFFI) lime_image_data_util_set_pixels (image, rect, byteArray, format); else
 		#end
 		{
 			
@@ -1123,10 +1214,11 @@ class ImageDataUtil {
 	private static var lime_image_data_util_copy_pixels = System.load ("lime", "lime_image_data_util_copy_pixels", 5);
 	private static var lime_image_data_util_fill_rect = System.load ("lime", "lime_image_data_util_fill_rect", 3);
 	private static var lime_image_data_util_flood_fill = System.load ("lime", "lime_image_data_util_flood_fill", 4);
-	private static var lime_image_data_util_get_pixels = System.load ("lime", "lime_image_data_util_get_pixels", 3);
+	private static var lime_image_data_util_get_pixels = System.load ("lime", "lime_image_data_util_get_pixels", 4);
 	private static var lime_image_data_util_merge = System.load ("lime", "lime_image_data_util_merge", -1);
 	private static var lime_image_data_util_multiply_alpha = System.load ("lime", "lime_image_data_util_multiply_alpha", 1);
 	private static var lime_image_data_util_resize = System.load ("lime", "lime_image_data_util_resize", 4);
+	private static var lime_image_data_util_set_format = System.load ("lime", "lime_image_data_util_set_format", 2);
 	private static var lime_image_data_util_set_pixels = System.load ("lime", "lime_image_data_util_set_pixels", 4);
 	private static var lime_image_data_util_unmultiply_alpha = System.load ("lime", "lime_image_data_util_unmultiply_alpha", 1);
 	#end

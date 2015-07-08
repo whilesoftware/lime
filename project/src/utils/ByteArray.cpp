@@ -138,13 +138,14 @@ namespace lime {
 		
 		if (!val_is_null (bytes.mValue)) {
 			
-			return alloc_int ((intptr_t)bytes.Bytes ());
+			return alloc_float ((intptr_t)bytes.Bytes ());
 			
 		}
 		
 		return alloc_null ();
 		
 	}
+	
 	
 	value lime_byte_array_init (value inFactory, value inLen, value inResize, value inBytes) {
 		
@@ -194,6 +195,8 @@ namespace lime {
 		return result.mValue;
 		
 	}
+	
+	
 	
 	
 	DEFINE_PRIM (lime_byte_array_get_native_pointer, 1);

@@ -19,13 +19,15 @@ namespace lime {
 	
 	SDLApplication::SDLApplication () {
 		
-		if (SDL_Init (SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER) != 0) {
+		if (SDL_Init (SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER | SDL_INIT_JOYSTICK) != 0) {
 			
 			printf ("Could not initialize SDL: %s.\n", SDL_GetError ());
 			
 		}
 		
 		currentApplication = this;
+		
+		framePeriod = 1000.0 / 60.0;
 		
 		#ifdef EMSCRIPTEN
 		emscripten_cancel_main_loop ();
@@ -41,6 +43,7 @@ namespace lime {
 		KeyEvent keyEvent;
 		MouseEvent mouseEvent;
 		RenderEvent renderEvent;
+		TextEvent textEvent;
 		TouchEvent touchEvent;
 		UpdateEvent updateEvent;
 		WindowEvent windowEvent;
@@ -111,6 +114,18 @@ namespace lime {
 				RenderEvent::Dispatch (&renderEvent);
 				break;
 			
+			case SDL_APP_WILLENTERBACKGROUND:
+				
+				windowEvent.type = WINDOW_DEACTIVATE;
+				WindowEvent::Dispatch (&windowEvent);
+				break;
+			
+			case SDL_APP_WILLENTERFOREGROUND:
+				
+				windowEvent.type = WINDOW_ACTIVATE;
+				WindowEvent::Dispatch (&windowEvent);
+				break;
+			
 			case SDL_CONTROLLERAXISMOTION:
 			case SDL_CONTROLLERBUTTONDOWN:
 			case SDL_CONTROLLERBUTTONUP:
@@ -118,6 +133,13 @@ namespace lime {
 			case SDL_CONTROLLERDEVICEREMOVED:
 				
 				ProcessGamepadEvent (event);
+				break;
+			
+			case SDL_FINGERMOTION:
+			case SDL_FINGERDOWN:
+			case SDL_FINGERUP:
+				
+				ProcessTouchEvent (event);
 				break;
 			
 			case SDL_JOYAXISMOTION:
@@ -143,6 +165,12 @@ namespace lime {
 			case SDL_MOUSEWHEEL:
 				
 				ProcessMouseEvent (event);
+				break;
+			
+			case SDL_TEXTINPUT:
+			case SDL_TEXTEDITING:
+				
+				ProcessTextEvent (event);
 				break;
 			
 			case SDL_WINDOWEVENT:
@@ -196,7 +224,6 @@ namespace lime {
 	
 	void SDLApplication::Init () {
 		
-		framePeriod = 1000.0 / 60.0;
 		active = true;
 		lastUpdate = SDL_GetTicks ();
 		nextUpdate = lastUpdate;
@@ -292,6 +319,10 @@ namespace lime {
 	
 	void SDLApplication::ProcessMouseEvent (SDL_Event* event) {
 		
+		#ifdef IPHONEOS
+		return;
+		#endif
+		
 		if (MouseEvent::callback) {
 			
 			switch (event->type) {
@@ -337,9 +368,70 @@ namespace lime {
 	}
 	
 	
+	void SDLApplication::ProcessTextEvent (SDL_Event* event) {
+		
+		if (TextEvent::callback) {
+			
+			switch (event->type) {
+				
+				case SDL_TEXTINPUT:
+					
+					textEvent.type = TEXT_INPUT;
+					break;
+				
+				case SDL_TEXTEDITING:
+					
+					textEvent.type = TEXT_EDIT;
+					textEvent.start = event->edit.start;
+					textEvent.length = event->edit.length;
+					break;
+				
+			}
+			
+			strcpy (textEvent.text, event->text.text);
+			
+			TextEvent::Dispatch (&textEvent);
+			
+		}
+		
+	}
+	
+	
 	void SDLApplication::ProcessTouchEvent (SDL_Event* event) {
 		
-		
+		if (TouchEvent::callback) {
+			
+			switch (event->type) {
+				
+				case SDL_FINGERMOTION:
+					
+					touchEvent.type = TOUCH_MOVE;
+					touchEvent.x = event->tfinger.x;
+					touchEvent.y = event->tfinger.y;
+					touchEvent.id = event->tfinger.fingerId;
+					break;
+				
+				case SDL_FINGERDOWN:
+					
+					touchEvent.type = TOUCH_START;
+					touchEvent.x = event->tfinger.x;
+					touchEvent.y = event->tfinger.y;
+					touchEvent.id = event->tfinger.fingerId;
+					break;
+				
+				case SDL_FINGERUP:
+					
+					touchEvent.type = TOUCH_END;
+					touchEvent.x = event->tfinger.x;
+					touchEvent.y = event->tfinger.y;
+					touchEvent.id = event->tfinger.fingerId;
+					break;
+				
+			}
+			
+			TouchEvent::Dispatch (&touchEvent);
+			
+		}
 		
 	}
 	
@@ -401,6 +493,21 @@ namespace lime {
 		#ifdef IPHONE
 		SDL_iPhoneSetAnimationCallback (window->sdlWindow, 1, UpdateFrame, NULL);
 		#endif
+		
+	}
+	
+	
+	void SDLApplication::SetFrameRate (double frameRate) {
+		
+		if (frameRate > 0) {
+			
+			framePeriod = 1000.0 / frameRate;
+			
+		} else {
+			
+			framePeriod = 1000.0;
+			
+		}
 		
 	}
 	
