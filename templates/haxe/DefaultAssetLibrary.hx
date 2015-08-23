@@ -8,7 +8,7 @@ import lime.audio.AudioSource;
 import lime.audio.openal.AL;
 import lime.audio.AudioBuffer;
 import lime.graphics.Image;
-import lime.system.BackgroundWorker;
+import lime.system.ThreadPool;
 import lime.text.Font;
 import lime.utils.ByteArray;
 import lime.utils.UInt8Array;
@@ -40,12 +40,19 @@ class DefaultAssetLibrary extends AssetLibrary {
 	public var type (default, null) = new Map <String, AssetType> ();
 	
 	private var lastModified:Float;
+	private var threadPool:ThreadPool;
 	private var timer:Timer;
 	
 	
 	public function new () {
 		
 		super ();
+		
+		#if (openfl && !flash)
+		::if (assets != null)::
+		::foreach assets::::if (type == "font")::openfl.text.Font.registerFont (__ASSET__OPENFL__::flatName::);::end::
+		::end::::end::
+		#end
 		
 		#if flash
 		
@@ -70,12 +77,6 @@ class DefaultAssetLibrary extends AssetLibrary {
 		}
 		
 		#else
-		
-		#if openfl
-		::if (assets != null)::
-		::foreach assets::::if (type == "font")::openfl.text.Font.registerFont (__ASSET__OPENFL__::flatName::);::end::
-		::end::::end::
-		#end
 		
 		#if (windows || mac || linux)
 		
@@ -128,6 +129,24 @@ class DefaultAssetLibrary extends AssetLibrary {
 		
 		#end
 		#end
+		
+	}
+	
+	
+	private function createThreadPool ():Void {
+		
+		threadPool = new ThreadPool (0, 2);
+		threadPool.doWork.add (function (id, data) {
+			
+			data.result = data.getMethod (id);
+			threadPool.sendComplete (data.handler, data);
+			
+		});
+		threadPool.onComplete.add (function (id, data) {
+			
+			data.handler (data.result);
+			
+		});
 		
 	}
 	
@@ -548,16 +567,13 @@ class DefaultAssetLibrary extends AssetLibrary {
 		
 		#else
 		
-		var worker = new BackgroundWorker ();
-		
-		worker.doWork.add (function (_) {
+		if (threadPool == null) {
 			
-			worker.sendComplete (getBytes (id));
+			createThreadPool ();
 			
-		});
+		}
 		
-		worker.onComplete.add (handler);
-		worker.run ();
+		threadPool.queue (id, { handler: handler, getMethod: getBytes });
 		
 		#end
 		
@@ -595,7 +611,7 @@ class DefaultAssetLibrary extends AssetLibrary {
 				handler (Image.fromImageElement (image));
 				
 			}
-			image.src = id;
+			image.src = path.get (id);
 			
 		} else {
 			
@@ -605,16 +621,13 @@ class DefaultAssetLibrary extends AssetLibrary {
 		
 		#else
 		
-		var worker = new BackgroundWorker ();
-		
-		worker.doWork.add (function (_) {
+		if (threadPool == null) {
 			
-			worker.sendComplete (getImage (id));
+			createThreadPool ();
 			
-		});
+		}
 		
-		worker.onComplete.add (handler);
-		worker.run ();
+		threadPool.queue (id, { handler: handler, getMethod: getImage });
 		
 		#end
 		
@@ -779,7 +792,7 @@ class DefaultAssetLibrary extends AssetLibrary {
 ::if (assets != null)::::foreach assets::::if (!embed)::::if (type == "font")::@:keep #if display private #end class __ASSET__::flatName:: extends lime.text.Font { public function new () { __fontPath = #if ios "assets/" + #end "::targetPath::"; name = "::fontName::"; super (); }}
 ::end::::end::::end::::end::
 
-#if (windows || mac || linux)
+#if (windows || mac || linux || cpp)
 
 ::if (assets != null)::
 ::foreach assets::::if (embed)::::if (type == "image")::@:image("::sourcePath::") #if display private #end class __ASSET__::flatName:: extends lime.graphics.Image {}
@@ -791,12 +804,11 @@ class DefaultAssetLibrary extends AssetLibrary {
 ::end::
 
 #end
+#end
 
-#if openfl
+#if (openfl && !flash)
 ::if (assets != null)::::foreach assets::::if (type == "font")::@:keep #if display private #end class __ASSET__OPENFL__::flatName:: extends openfl.text.Font { public function new () { ::if (embed)::var font = new __ASSET__::flatName:: (); src = font.src; name = font.name;::else::__fontPath = #if ios "assets/" + #end "::targetPath::"; name = "::fontName::";::end:: super (); }}
 ::end::::end::::end::
 #end
 
 #end
-#end
-
