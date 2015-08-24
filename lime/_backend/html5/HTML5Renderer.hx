@@ -49,11 +49,10 @@ class HTML5Renderer {
 		if (parent.window.backend.div != null) {
 			
 			parent.context = DOM (cast parent.window.backend.div);
-			parent.type = DOM;
 			
 		} else if (parent.window.backend.canvas != null) {
 			
-			#if (canvas || munit)
+			#if canvas
 			
 			var webgl = null;
 			
@@ -75,7 +74,6 @@ class HTML5Renderer {
 			if (webgl == null) {
 				
 				parent.context = CANVAS (cast parent.window.backend.canvas.getContext ("2d"));
-				parent.type = CANVAS;
 				
 			} else {
 				
@@ -89,7 +87,6 @@ class HTML5Renderer {
 				#else
 				parent.context = OPENGL (new GLRenderContext ());
 				#end
-				parent.type = OPENGL;
 				
 			}
 			
@@ -114,13 +111,13 @@ class HTML5Renderer {
 				event.preventDefault ();
 				parent.context = null;
 				
-				parent.onContextLost.dispatch ();
+				parent.onRenderContextLost.dispatch ();
 				
 			case "webglcontextrestored":
 				
 				createContext ();
 				
-				parent.onContextRestored.dispatch (parent.context);
+				parent.onRenderContextRestored.dispatch (parent.context);
 			
 			default:
 			

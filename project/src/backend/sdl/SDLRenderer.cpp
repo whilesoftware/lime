@@ -11,7 +11,6 @@ namespace lime {
 		currentWindow = window;
 		sdlWindow = ((SDLWindow*)window)->sdlWindow;
 		sdlTexture = 0;
-		context = 0;
 		
 		width = 0;
 		height = 0;
@@ -22,38 +21,21 @@ namespace lime {
 			
 			sdlFlags |= SDL_RENDERER_ACCELERATED;
 			
-			if (window->flags & WINDOW_FLAG_VSYNC) {
-				
-				sdlFlags |= SDL_RENDERER_PRESENTVSYNC;
-				
-			}
-			
 		} else {
 			
 			sdlFlags |= SDL_RENDERER_SOFTWARE;
 			
 		}
 		
-		sdlRenderer = SDL_CreateRenderer (sdlWindow, -1, sdlFlags);
+		if (window->flags & WINDOW_FLAG_VSYNC) sdlFlags |= SDL_RENDERER_PRESENTVSYNC;
 		
-		if (!sdlRenderer && (sdlFlags & SDL_RENDERER_ACCELERATED)) {
-			
-			sdlFlags &= ~SDL_RENDERER_ACCELERATED;
-			sdlFlags &= ~SDL_RENDERER_PRESENTVSYNC;
-			
-			sdlFlags |= SDL_RENDERER_SOFTWARE;
-			
-			sdlRenderer = SDL_CreateRenderer (sdlWindow, -1, sdlFlags);
-			
-		}
+		sdlRenderer = SDL_CreateRenderer (sdlWindow, -1, sdlFlags);
 		
 		if (!sdlRenderer) {
 			
 			printf ("Could not create SDL renderer: %s.\n", SDL_GetError ());
 			
 		}
-		
-		context = SDL_GL_GetCurrentContext ();
 		
 		OpenGLBindings::Init ();
 		
@@ -78,13 +60,6 @@ namespace lime {
 	}
 	
 	
-	void* SDLRenderer::GetContext () {
-		
-		return context;
-		
-	}
-	
-	
 	value SDLRenderer::Lock () {
 		
 		int width;
@@ -92,13 +67,10 @@ namespace lime {
 		
 		SDL_GetRendererOutputSize (sdlRenderer, &width, &height);
 		
-		if (width != this->width || height != this->height) {
+		if ( width != this->width || height != this->height) {
 			
-			if (sdlTexture) {
-				
-				SDL_DestroyTexture (sdlTexture);
-				
-			}
+			if( sdlTexture )
+				SDL_DestroyTexture( sdlTexture );
 			
 			sdlTexture = SDL_CreateTexture (sdlRenderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, width, height);
 			
@@ -119,41 +91,6 @@ namespace lime {
 		}
 		
 		return result;
-		
-	}
-	
-	
-	void SDLRenderer::MakeCurrent () {
-		
-		if (sdlWindow && context) {
-			
-			SDL_GL_MakeCurrent (sdlWindow, context);
-			
-		}
-		
-	}
-	
-	
-	const char* SDLRenderer::Type () {
-		
-		if (sdlRenderer) {
-			
-			SDL_RendererInfo info;
-			SDL_GetRendererInfo (sdlRenderer, &info);
-			
-			if (info.flags & SDL_RENDERER_SOFTWARE) {
-				
-				return "software";
-				
-			} else {
-				
-				return "opengl";
-				
-			}
-			
-		}
-		
-		return "none";
 		
 	}
 	

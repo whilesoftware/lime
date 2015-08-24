@@ -495,11 +495,7 @@ class CommandLineTools {
 			var temporaryFile = PathHelper.getTemporaryFile ();
 			File.saveContent (temporaryFile, projectData);
 			
-			var targetDir = PathHelper.getHaxelib (new Haxelib (handler));
-			var exePath = Path.join ([targetDir, "run.exe"]);
-			var exeExists = FileSystem.exists (exePath);
-			
-			var args = [ command, temporaryFile ];
+			var args = [ "run", handler, command, temporaryFile ];
 			
 			if (LogHelper.verbose) args.push ("-verbose");
 			if (!LogHelper.enableColor) args.push ("-nocolor");
@@ -511,16 +507,8 @@ class CommandLineTools {
 				args = args.concat (additionalArguments);
 				
 			}
-
-			if (exeExists) {
-
-				ProcessHelper.runCommand ("", exePath, args);
-
-			} else {
 			
-				ProcessHelper.runCommand ("", "haxelib", ["run", handler].concat (args));
-
-			}
+			ProcessHelper.runCommand ("", "haxelib", args);
 			
 			try {
 				
@@ -1271,7 +1259,7 @@ class CommandLineTools {
 			
 		}
 		
-		if (project == null || (command != "rebuild" && project.sources.length == 0)) {
+		if (project == null) {
 			
 			LogHelper.error ("You must have a \"project.xml\" file or specify another valid project file when using the '" + command + "' command");
 			return null;

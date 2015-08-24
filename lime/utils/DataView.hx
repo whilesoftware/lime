@@ -1,7 +1,5 @@
 package lime.utils;
 
-import lime.utils.ArrayBufferView;
-
 #if (js && !display)
 
     @:forward

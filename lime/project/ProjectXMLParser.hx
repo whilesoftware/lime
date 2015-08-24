@@ -7,7 +7,6 @@ import lime.tools.helpers.ArrayHelper;
 import lime.tools.helpers.LogHelper;
 import lime.tools.helpers.ObjectHelper;
 import lime.tools.helpers.PathHelper;
-import lime.tools.helpers.PlatformHelper;
 import lime.tools.helpers.StringMapHelper;
 import lime.project.Asset;
 import lime.project.AssetType;
@@ -79,7 +78,7 @@ class ProjectXMLParser extends HXProject {
 			
 		}
 		
-		if (targetFlags.exists ("neko") || (platformType == DESKTOP && target != PlatformHelper.hostPlatform)) {
+		if (targetFlags.exists ("neko")) {
 			
 			defines.set ("native", "1");
 			defines.set ("neko", "1");
@@ -1215,7 +1214,6 @@ class ProjectXMLParser extends HXProject {
 							var embed:Null<Bool> = null;
 							var preload = false;
 							var generate = false;
-							var prefix = "";
 							
 							if (element.has.name) {
 								
@@ -1253,13 +1251,7 @@ class ProjectXMLParser extends HXProject {
 								
 							}
 							
-							if (element.has.prefix) {
-								
-								prefix = substitute (element.att.prefix);
-								
-							}
-							
-							libraries.push (new Library (path, name, type, embed, preload, generate, prefix));
+							libraries.push (new Library (path, name, type, embed, preload, generate));
 							
 						}
 					

@@ -2,14 +2,10 @@ package lime.graphics.utils;
 
 
 import haxe.ds.Vector;
-import haxe.Int32;
 import haxe.io.Bytes;
 import lime.graphics.Image;
 import lime.graphics.ImageBuffer;
 import lime.graphics.PixelFormat;
-import lime.math.color.ARGB;
-import lime.math.color.BGRA;
-import lime.math.color.RGBA;
 import lime.math.ColorMatrix;
 import lime.math.Rectangle;
 import lime.math.Vector2;
@@ -17,10 +13,39 @@ import lime.system.System;
 import lime.utils.ByteArray;
 import lime.utils.UInt8Array;
 
-@:access(lime.math.color.RGBA)
-
 
 class ImageDataUtil {
+	
+	
+	private static var __alpha16:Vector<Int>;
+	private static var __clamp:Vector<Int>;
+	
+	
+	private static function __init__ ():Void {
+		
+		__alpha16 = new Vector<Int> (256);
+		
+		for (i in 0...256) {
+			
+			__alpha16[i] = Std.int (i * (1 << 16) / 255);
+			
+		}
+		
+		__clamp = new Vector<Int> (0xFF + 0xFF);
+		
+		for (i in 0...0xFF) {
+			
+			__clamp[i] = i;
+			
+		}
+		
+		for (i in 0xFF...(0xFF + 0xFF + 1)) {
+			
+			__clamp[i] = 0xFF;
+			
+		}
+		
+	}
 	
 	
 	public static function colorTransform (image:Image, rect:Rectangle, colorMatrix:ColorMatrix):Void {
@@ -33,29 +58,34 @@ class ImageDataUtil {
 		#end
 		{
 			
-			var format = image.buffer.format;
-			var premultiplied = image.buffer.premultiplied;
+			var stride = image.buffer.width * 4;
+			var offset:Int;
 			
-			var dataView = new ImageDataView (image, rect);
+			var rowStart = Std.int (rect.top + image.offsetY);
+			var rowEnd = Std.int (rect.bottom + image.offsetY);
+			var columnStart = Std.int (rect.left + image.offsetX);
+			var columnEnd = Std.int (rect.right + image.offsetX);
 			
-			var alphaTable = colorMatrix.getAlphaTable ();
-			var redTable = colorMatrix.getRedTable ();
-			var greenTable = colorMatrix.getGreenTable ();
-			var blueTable = colorMatrix.getBlueTable ();
+			var r, g, b, a, ex = 0;
 			
-			var row, offset, pixel:RGBA;
-			
-			for (y in 0...dataView.height) {
+			for (row in rowStart...rowEnd) {
 				
-				row = dataView.row (y);
-				
-				for (x in 0...dataView.width) {
+				for (column in columnStart...columnEnd) {
 					
-					offset = row + (x * 4);
+					offset = (row * stride) + (column * 4);
 					
-					pixel.readUInt8 (data, offset, format, premultiplied);
-					pixel.set (redTable[pixel.r], greenTable[pixel.g], blueTable[pixel.b], alphaTable[pixel.a]);
-					pixel.writeUInt8 (data, offset, format, premultiplied);
+					a = Std.int ((data[offset + 3] * colorMatrix.alphaMultiplier) + colorMatrix.alphaOffset);
+					ex = a > 0xFF ? a - 0xFF : 0;
+					b = Std.int ((data[offset + 2] * colorMatrix.blueMultiplier) + colorMatrix.blueOffset + ex);
+					ex = b > 0xFF ? b - 0xFF : 0;
+					g = Std.int ((data[offset + 1] * colorMatrix.greenMultiplier) + colorMatrix.greenOffset + ex);
+					ex = g > 0xFF ? g - 0xFF : 0;
+					r = Std.int ((data[offset] * colorMatrix.redMultiplier) + colorMatrix.redOffset + ex);
+					
+					data[offset] = r > 0xFF ? 0xFF : r;
+					data[offset + 1] = g > 0xFF ? 0xFF : g;
+					data[offset + 2] = b > 0xFF ? 0xFF : b;
+					data[offset + 3] = a > 0xFF ? 0xFF : a;
 					
 				}
 				
@@ -98,48 +128,36 @@ class ImageDataUtil {
 		#end
 		{
 			
-			var srcView = new ImageDataView (sourceImage, sourceRect);
-			var destView = new ImageDataView (image, new Rectangle (destPoint.x, destPoint.y, srcView.width, srcView.height));
+			var srcStride = Std.int (sourceImage.buffer.width * 4);
+			var srcPosition = Std.int (((sourceRect.x + sourceImage.offsetX) * 4) + (srcStride * (sourceRect.y + sourceImage.offsetY)) + srcIdx);
+			var srcRowOffset = srcStride - Std.int (4 * (sourceRect.width + sourceImage.offsetX));
+			var srcRowEnd = Std.int (4 * (sourceRect.x + sourceImage.offsetX + sourceRect.width));
+			var srcData = sourceImage.buffer.data;
 			
-			var srcFormat = sourceImage.buffer.format;
-			var destFormat = image.buffer.format;
-			var srcPremultiplied = sourceImage.buffer.premultiplied;
-			var destPremultiplied = image.buffer.premultiplied;
+			var destStride = Std.int (image.buffer.width * 4);
+			var destPosition = Std.int (((destPoint.x + image.offsetX) * 4) + (destStride * (destPoint.y + image.offsetY)) + destIdx);
+			var destRowOffset = destStride - Std.int (4 * (sourceRect.width + image.offsetX));
+			var destRowEnd = Std.int (4 * (destPoint.x + image.offsetX + sourceRect.width));
+			var destData = image.buffer.data;
 			
-			var srcPosition, destPosition, srcPixel:RGBA, destPixel:RGBA, value = 0;
+			var length = Std.int (sourceRect.width * sourceRect.height);
 			
-			for (y in 0...destView.height) {
+			for (i in 0...length) {
 				
-				srcPosition = srcView.row (y);
-				destPosition = destView.row (y);
+				destData[destPosition] = srcData[srcPosition];
 				
-				for (x in 0...destView.width) {
+				srcPosition += 4;
+				destPosition += 4;
+				
+				if ((srcPosition % srcStride) > srcRowEnd) {
 					
-					srcPixel.readUInt8 (srcData, srcPosition, srcFormat, srcPremultiplied);
-					destPixel.readUInt8 (destData, destPosition, destFormat, destPremultiplied);
+					srcPosition += srcRowOffset;
 					
-					switch (srcIdx) {
-						
-						case 0: value = srcPixel.r;
-						case 1: value = srcPixel.g;
-						case 2: value = srcPixel.b;
-						case 3: value = srcPixel.a;
-						
-					}
+				}
+				
+				if ((destPosition % destStride) > destRowEnd) {
 					
-					switch (destIdx) {
-						
-						case 0: destPixel.r = value;
-						case 1: destPixel.g = value;
-						case 2: destPixel.b = value;
-						case 3: destPixel.a = value;
-						
-					}
-					
-					destPixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
-					
-					srcPosition += 4;
-					destPosition += 4;
+					destPosition += destRowOffset;
 					
 				}
 				
@@ -154,40 +172,56 @@ class ImageDataUtil {
 	
 	public static function copyPixels (image:Image, sourceImage:Image, sourceRect:Rectangle, destPoint:Vector2, alphaImage:Image = null, alphaPoint:Vector2 = null, mergeAlpha:Bool = false):Void {
 		
+		if (alphaImage != null && alphaImage.transparent) {
+			
+			if (alphaPoint == null) alphaPoint = new Vector2 ();
+			
+			// TODO: use faster method
+			
+			var tempData = image.clone ();
+			tempData.copyChannel (alphaImage, new Rectangle (alphaPoint.x, alphaPoint.y, sourceRect.width, sourceRect.height), new Vector2 (sourceRect.x, sourceRect.y), ImageChannel.ALPHA, ImageChannel.ALPHA);
+			sourceImage = tempData;
+			
+		}
+		
 		#if ((cpp || neko) && !disable_cffi)
-		if (!System.disableCFFI) lime_image_data_util_copy_pixels (image, sourceImage, sourceRect, destPoint, alphaImage, alphaPoint, mergeAlpha); else
+		if (!System.disableCFFI) lime_image_data_util_copy_pixels (image, sourceImage, sourceRect, destPoint, mergeAlpha); else
 		#end
 		{
 			
+			var rowOffset = Std.int (destPoint.y + image.offsetY - sourceRect.y - sourceImage.offsetY);
+			var columnOffset = Std.int (destPoint.x + image.offsetX - sourceRect.x - sourceImage.offsetY);
+			
 			var sourceData = sourceImage.buffer.data;
-			var destData = image.buffer.data;
+			var sourceStride = sourceImage.buffer.width * 4;
+			var sourceOffset:Int = 0;
 			
-			if (sourceData == null || destData == null) return;
-			
-			var sourceView = new ImageDataView (sourceImage, sourceRect);
-			var destView = new ImageDataView (image, new Rectangle (destPoint.x, destPoint.y, sourceView.width, sourceView.height));
-			
-			var sourceFormat = sourceImage.buffer.format;
-			var destFormat = image.buffer.format;
-			var sourcePremultiplied = sourceImage.buffer.premultiplied;
-			var destPremultiplied = image.buffer.premultiplied;
-			
-			var sourcePosition, destPosition, sourcePixel:RGBA;
+			var data = image.buffer.data;
+			var stride = image.buffer.width * 4;
+			var offset:Int = 0;
 			
 			if (!mergeAlpha || !sourceImage.transparent) {
 				
-				for (y in 0...destView.height) {
+				//#if (!js && !flash)
+				//if (sourceRect.width == image.width && sourceRect.height == image.height && image.width == sourceImage.width && image.height == sourceImage.height && sourceRect.x == 0 && sourceRect.y == 0 && destPoint.x == 0 && destPoint.y == 0) {
+					//
+					//image.buffer.data.buffer.blit (0, sourceImage.buffer.data.buffer, 0, Std.int (sourceRect.width * sourceRect.height) * 4);
+					//return;
+					//
+				//}
+				//#end
+				
+				for (row in Std.int (sourceRect.top + sourceImage.offsetY)...Std.int (sourceRect.bottom + sourceImage.offsetY)) {
 					
-					sourcePosition = sourceView.row (y);
-					destPosition = destView.row (y);
-					
-					for (x in 0...destView.width) {
+					for (column in Std.int (sourceRect.left + sourceImage.offsetX)...Std.int (sourceRect.right + sourceImage.offsetX)) {
 						
-						sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
-						sourcePixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
+						sourceOffset = (row * sourceStride) + (column * 4);
+						offset = ((row + rowOffset) * stride) + ((column + columnOffset) * 4);
 						
-						sourcePosition += 4;
-						destPosition += 4;
+						data[offset] = sourceData[sourceOffset];
+						data[offset + 1] = sourceData[sourceOffset + 1];
+						data[offset + 2] = sourceData[sourceOffset + 2];
+						data[offset + 3] = sourceData[sourceOffset + 3];
 						
 					}
 					
@@ -195,93 +229,28 @@ class ImageDataUtil {
 				
 			} else {
 				
-				var sourceAlpha, destAlpha, oneMinusSourceAlpha, blendAlpha;
-				var destPixel:RGBA;
+				var sourceAlpha:Float;
+				var destAlpha:Float;
+				var outA:Float;
+				var oneMinusSourceAlpha:Float;
 				
-				if (alphaImage == null) {
+				for (row in Std.int (sourceRect.top + sourceImage.offsetY)...Std.int (sourceRect.bottom + sourceImage.offsetY)) {
 					
-					for (y in 0...destView.height) {
+					for (column in Std.int (sourceRect.left + sourceImage.offsetX)...Std.int (sourceRect.right + sourceImage.offsetX)) {
 						
-						sourcePosition = sourceView.row (y);
-						destPosition = destView.row (y);
+						sourceOffset = (row * sourceStride) + (column * 4);
+						offset = ((row + rowOffset) * stride) + ((column + columnOffset) * 4);
 						
-						for (x in 0...destView.width) {
-							
-							sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
-							destPixel.readUInt8 (destData, destPosition, destFormat, destPremultiplied);
-							
-							sourceAlpha = sourcePixel.a / 255.0;
-							destAlpha = destPixel.a / 255.0;
-							oneMinusSourceAlpha = 1 - sourceAlpha;
-							blendAlpha = sourceAlpha + (destAlpha * oneMinusSourceAlpha);
-							
-							if (blendAlpha == 0) {
-								
-								destPixel = 0;
-								
-							} else {
-								
-								destPixel.r = RGBA.__clamp[Math.round ((sourcePixel.r * sourceAlpha + destPixel.r * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.g = RGBA.__clamp[Math.round ((sourcePixel.g * sourceAlpha + destPixel.g * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.b = RGBA.__clamp[Math.round ((sourcePixel.b * sourceAlpha + destPixel.b * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.a = RGBA.__clamp[Math.round (blendAlpha * 255.0)];
-								
-							}
-							
-							destPixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
-							
-							sourcePosition += 4;
-							destPosition += 4;
-							
-						}
+						sourceAlpha = sourceData[sourceOffset + 3] / 255.0;
+						destAlpha = data[offset + 3] / 255.0;
+						oneMinusSourceAlpha = (1 - sourceAlpha);
 						
-					}
-					
-				} else {
-					
-					var alphaData = alphaImage.buffer.data;
-					var alphaFormat = alphaImage.buffer.format;
-					var alphaPremultiplied = alphaImage.buffer.premultiplied;
-					
-					var alphaView = new ImageDataView (alphaImage, new Rectangle (alphaPoint.x, alphaPoint.y, destView.width, destView.height));
-					var alphaPosition, alphaPixel:RGBA;
-					
-					for (y in 0...alphaView.height) {
+						outA = sourceAlpha + destAlpha * oneMinusSourceAlpha;
+						data[offset + 0] = __clamp[Math.round ((sourceData[sourceOffset + 0] * sourceAlpha + data[offset + 0] * destAlpha * oneMinusSourceAlpha) / outA)];
+						data[offset + 1] = __clamp[Math.round ((sourceData[sourceOffset + 1] * sourceAlpha + data[offset + 1] * destAlpha * oneMinusSourceAlpha) / outA)];
+						data[offset + 2] = __clamp[Math.round ((sourceData[sourceOffset + 2] * sourceAlpha + data[offset + 2] * destAlpha * oneMinusSourceAlpha) / outA)];
+						data[offset + 3] = __clamp[Math.round (outA * 255.0)];
 						
-						sourcePosition = sourceView.row (y);
-						destPosition = destView.row (y);
-						alphaPosition = alphaView.row (y);
-						
-						for (x in 0...alphaView.width) {
-							
-							sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
-							destPixel.readUInt8 (destData, destPosition, destFormat, destPremultiplied);
-							alphaPixel.readUInt8 (alphaData, alphaPosition, alphaFormat, alphaPremultiplied);
-							
-							sourceAlpha = alphaPixel.a / 0xFF;
-							destAlpha = destPixel.a / 0xFF;
-							oneMinusSourceAlpha = 1 - sourceAlpha;
-							blendAlpha = sourceAlpha + (destAlpha * oneMinusSourceAlpha);
-							
-							if (blendAlpha == 0) {
-								
-								destPixel = 0;
-								
-							} else {
-								
-								destPixel.r = RGBA.__clamp[Math.round ((sourcePixel.r * sourceAlpha + destPixel.r * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.g = RGBA.__clamp[Math.round ((sourcePixel.g * sourceAlpha + destPixel.g * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.b = RGBA.__clamp[Math.round ((sourcePixel.b * sourceAlpha + destPixel.b * destAlpha * oneMinusSourceAlpha) / blendAlpha)];
-								destPixel.a = RGBA.__clamp[Math.round (blendAlpha * 255.0)];
-								
-							}
-							
-							destPixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
-							
-							sourcePosition += 4;
-							destPosition += 4;
-							
-						}
 						
 					}
 					
@@ -298,43 +267,80 @@ class ImageDataUtil {
 	
 	public static function fillRect (image:Image, rect:Rectangle, color:Int, format:PixelFormat):Void {
 		
-		var fillColor:RGBA;
+		var r, g, b, a;
 		
-		switch (format) {
+		if (format == ARGB) {
 			
-			case ARGB32: fillColor = (color:ARGB);
-			case BGRA32: fillColor = (color:BGRA);
-			default: fillColor = color;
+			a = (image.transparent) ? (color >> 24) & 0xFF : 0xFF;
+			r = (color >> 16) & 0xFF;
+			g = (color >> 8) & 0xFF;
+			b = color & 0xFF;
+			
+		} else {
+			
+			r = (color >> 24) & 0xFF;
+			g = (color >> 16) & 0xFF;
+			b = (color >> 8) & 0xFF;
+			a = (image.transparent) ? color & 0xFF : 0xFF;
 			
 		}
 		
-		if (!image.transparent) {
-			
-			fillColor.a = 0xFF;
-			
-		}
+		var rgba = (r | (g << 8) | (b << 16) | (a << 24));
 		
 		var data = image.buffer.data;
 		if (data == null) return;
 		
 		#if ((cpp || neko) && !disable_cffi)
-		if (!System.disableCFFI) lime_image_data_util_fill_rect (image, rect, (fillColor >> 16) & 0xFFFF, (fillColor) & 0xFFFF); else // TODO: Better Int32 solution
+		if (!System.disableCFFI) lime_image_data_util_fill_rect (image, rect, rgba); else
 		#end
 		{
 			
-			var format = image.buffer.format;
-			var premultiplied = image.buffer.premultiplied;
-			
-			var dataView = new ImageDataView (image, rect);
-			var row;
-			
-			for (y in 0...dataView.height) {
+			if (rect.width == image.buffer.width && rect.height == image.buffer.height && rect.x == 0 && rect.y == 0 && image.offsetX == 0 && image.offsetY == 0) {
 				
-				row = dataView.row (y);
+				var length = image.buffer.width * image.buffer.height;
 				
-				for (x in 0...dataView.width) {
+				var j = 0;
+				for (i in 0...length) {
 					
-					fillColor.writeUInt8 (data, row + (x * 4), format, premultiplied);
+					j = i * 4;
+					
+					//#if js
+					data[j + 0] = r;
+					data[j + 1] = g;
+					data[j + 2] = b;
+					data[j + 3] = a;
+					//#else
+					//data.setUInt32 (j, rgba);
+					//#end
+					
+				}
+				
+			} else {
+				
+				var stride = image.buffer.width * 4;
+				var offset:Int;
+				
+				var rowStart = Std.int (rect.y + image.offsetY);
+				var rowEnd = Std.int (rect.bottom + image.offsetY);
+				var columnStart = Std.int (rect.x + image.offsetX);
+				var columnEnd = Std.int (rect.right + image.offsetX);
+				
+				for (row in rowStart...rowEnd) {
+					
+					for (column in columnStart...columnEnd) {
+						
+						offset = (row * stride) + (column * 4);
+						
+						//#if js
+						data[offset] = r;
+						data[offset + 1] = g;
+						data[offset + 2] = b;
+						data[offset + 3] = a;
+						//#else
+						//data.setUInt32 (offset, rgba);
+						//#end
+						
+					}
 					
 				}
 				
@@ -352,29 +358,25 @@ class ImageDataUtil {
 		var data = image.buffer.data;
 		if (data == null) return;
 		
-		if (format == ARGB32) color = ((color & 0xFFFFFF) << 8) | ((color >> 24) & 0xFF);
+		if (format == ARGB) color = ((color & 0xFFFFFF) << 8) | ((color >> 24) & 0xFF);
 		
 		#if ((cpp || neko) && !disable_cffi)
-		if (!System.disableCFFI) lime_image_data_util_flood_fill (image, x, y, (color >> 16) & 0xFFFF, (color) & 0xFFFF); else // TODO: Better Int32 solution
+		if (!System.disableCFFI) lime_image_data_util_flood_fill (image, x, y, color); else
 		#end
 		{
 			
-			var format = image.buffer.format;
-			var premultiplied = image.buffer.premultiplied;
+			var offset = (((y + image.offsetY) * (image.buffer.width * 4)) + ((x + image.offsetX) * 4));
+			var hitColorR = data[offset + 0];
+			var hitColorG = data[offset + 1];
+			var hitColorB = data[offset + 2];
+			var hitColorA = image.transparent ? data[offset + 3] : 0xFF;
 			
-			var fillColor:RGBA = color;
+			var r = (color >> 24) & 0xFF;
+			var g = (color >> 16) & 0xFF;
+			var b = (color >> 8) & 0xFF;
+			var a = image.transparent ? color & 0xFF : 0xFF;
 			
-			var hitColor:RGBA;
-			hitColor.readUInt8 (data, ((y + image.offsetY) * (image.buffer.width * 4)) + ((x + image.offsetX) * 4), format, premultiplied);
-			
-			if (!image.transparent) {
-				
-				fillColor.a = 0xFF;
-				hitColor.a = 0xFF;
-				
-			}
-			
-			if (fillColor == hitColor) return;
+			if (hitColorR == r && hitColorG == g && hitColorB == b && hitColorA == a) return;
 			
 			var dx = [ 0, -1, 1, 0 ];
 			var dy = [ -1, 0, 0, 1 ];
@@ -388,17 +390,15 @@ class ImageDataUtil {
 			queue.push (x);
 			queue.push (y);
 			
-			var curPointX, curPointY, nextPointX, nextPointY, nextPointOffset, readColor:RGBA;
-			
 			while (queue.length > 0) {
 				
-				curPointY = queue.pop ();
-				curPointX = queue.pop ();
+				var curPointY = queue.pop ();
+				var curPointX = queue.pop ();
 				
 				for (i in 0...4) {
 					
-					nextPointX = curPointX + dx[i];
-					nextPointY = curPointY + dy[i];
+					var nextPointX = curPointX + dx[i];
+					var nextPointY = curPointY + dy[i];
 					
 					if (nextPointX < minX || nextPointY < minY || nextPointX >= maxX || nextPointY >= maxY) {
 						
@@ -406,12 +406,14 @@ class ImageDataUtil {
 						
 					}
 					
-					nextPointOffset = (nextPointY * image.width + nextPointX) * 4;
-					readColor.readUInt8 (data, nextPointOffset, format, premultiplied);
+					var nextPointOffset = (nextPointY * image.width + nextPointX) * 4;
 					
-					if (readColor == hitColor) {
+					if (data[nextPointOffset + 0] == hitColorR && data[nextPointOffset + 1] == hitColorG && data[nextPointOffset + 2] == hitColorB && data[nextPointOffset + 3] == hitColorA) {
 						
-						fillColor.writeUInt8 (data, nextPointOffset, format, premultiplied);
+						data[nextPointOffset + 0] = r;
+						data[nextPointOffset + 1] = g;
+						data[nextPointOffset + 2] = b;
+						data[nextPointOffset + 3] = a;
 						
 						queue.push (nextPointX);
 						queue.push (nextPointY);
@@ -431,53 +433,57 @@ class ImageDataUtil {
 	
 	public static function getColorBoundsRect (image:Image, mask:Int, color:Int, findColor:Bool = true, format:PixelFormat):Rectangle {
 		
-		var left = image.width + 1;
-		var right = 0;
-		var top = image.height + 1;
-		var bottom = 0;
+		var left:Int = image.width + 1;
+		var right:Int = 0;
+		var top:Int = image.height + 1;
+		var bottom:Int = 0;
 		
-		var _color:RGBA, _mask:RGBA;
+		var r, g, b, a;
+		var mr, mg, mb, ma;
 		
-		switch (format) {
+		if (format == ARGB) {
 			
-			case ARGB32:
-				
-				_color = (color:ARGB);
-				_mask = (mask:ARGB);
+			a = (image.transparent) ? (color >> 24) & 0xFF : 0xFF;
+			r = (color >> 16) & 0xFF;
+			g = (color >> 8) & 0xFF;
+			b = color & 0xFF;
 			
-			case BGRA32:
-				
-				_color = (color:BGRA);
-				_mask = (mask:BGRA);
+			ma = (image.transparent) ? (mask >> 24) & 0xFF : 0xFF;
+			mr = (mask >> 16) & 0xFF;
+			mg = (mask >> 8) & 0xFF;
+			mb = mask & 0xFF;
 			
-			default:
-				
-				_color = color;
-				_mask = mask;
+		} else {
+			
+			r = (color >> 24) & 0xFF;
+			g = (color >> 16) & 0xFF;
+			b = (color >> 8) & 0xFF;
+			a = (image.transparent) ? color & 0xFF : 0xFF;
+			
+			mr = (mask >> 24) & 0xFF;
+			mg = (mask >> 16) & 0xFF;
+			mb = (mask >> 8) & 0xFF;
+			ma = (image.transparent) ? mask & 0xFF : 0xFF;
 			
 		}
 		
-		if (!image.transparent) {
-			
-			_color.a = 0xFF;
-			_mask.a = 0xFF;
-			
-		}
+		color = (r | (g << 8) | (b << 16) | (a << 24));
+		mask = (mr | (mg << 8) | (mb << 16) | (mask << 24));
 		
-		var pixel, hit;
+		var pix:Int;
 		
-		for (x in 0...image.width) {
+		for (ix in 0...image.width) {
 			
-			hit = false;
+			var hit = false;
 			
-			for (y in 0...image.height) {
+			for (iy in 0...image.height) {
 				
-				pixel = image.getPixel32 (x, y, RGBA32);
-				hit = findColor ? (pixel & _mask) == _color : (pixel & _mask) != _color;
+				pix = image.getPixel32 (ix, iy);
+				hit = findColor ? (pix & mask) == color : (pix & mask) != color;
 				
 				if (hit) {
 					
-					if (x < left) left = x;
+					if (ix < left) left = ix;
 					break;
 					
 				}
@@ -492,17 +498,15 @@ class ImageDataUtil {
 			
 		}
 		
-		var ix;
-		
-		for (x in 0...image.width) {
+		for (_ix in 0...image.width) {
 			
-			ix = (image.width - 1) - x;
-			hit = false;
+			var ix = (image.width - 1) - _ix;
+			var hit = false;
 			
-			for (y in 0...image.height) {
+			for (iy in 0...image.height) {
 				
-				pixel = image.getPixel32 (ix, y, RGBA32);
-				hit = findColor ? (pixel & _mask) == _color : (pixel & _mask) != _color;
+				pix = image.getPixel32 (ix, iy);
+				hit = findColor ? (pix & mask) == color : (pix & mask) != color;
 				
 				if (hit) {
 					
@@ -521,18 +525,18 @@ class ImageDataUtil {
 			
 		}
 		
-		for (y in 0...image.height) {
+		for (iy in 0...image.height) {
 			
-			hit = false;
+			var hit = false;
 			
-			for (x in 0...image.width) {
+			for (ix in 0...image.width) {
 				
-				pixel = image.getPixel32 (x, y, RGBA32);
-				hit = findColor ? (pixel & _mask) == _color : (pixel & _mask) != _color;
+				pix = image.getPixel32 (ix, iy);
+				hit = findColor ? (pix & mask) == color : (pix & mask) != color;
 				
 				if (hit) {
 					
-					if (y < top) top = y;
+					if (iy < top) top = iy;
 					break;
 					
 				}
@@ -547,17 +551,15 @@ class ImageDataUtil {
 			
 		}
 		
-		var iy;
-		
-		for (y in 0...image.height) {
+		for (_iy in 0...image.height) {
 			
-			iy = (image.height - 1) - y;
-			hit = false;
+			var iy = (image.height - 1) - _iy;
+			var hit = false;
 			
-			for (x in 0...image.width) {
+			for (ix in 0...image.width) {
 				
-				pixel = image.getPixel32 (x, iy, RGBA32);
-				hit = findColor ? (pixel & _mask) == _color : (pixel & _mask) != _color;
+				pix = image.getPixel32 (ix, iy);
+				hit = findColor ? (pix & mask) == color : (pix & mask) != color;
 				
 				if (hit) {
 					
@@ -598,16 +600,28 @@ class ImageDataUtil {
 	
 	public static function getPixel (image:Image, x:Int, y:Int, format:PixelFormat):Int {
 		
-		var pixel:RGBA;
+		var data = image.buffer.data;
+		var offset = (4 * (y + image.offsetY) * image.buffer.width + (x + image.offsetX) * 4);
+		var pixel;
 		
-		pixel.readUInt8 (image.buffer.data, (4 * (y + image.offsetY) * image.buffer.width + (x + image.offsetX) * 4), image.buffer.format, image.buffer.premultiplied);
-		pixel.a = 0;
-		
-		switch (format) {
+		if (image.premultiplied) {
 			
-			case ARGB32: return (pixel:ARGB);
-			case BGRA32: return (pixel:BGRA);
-			default: return pixel;
+			var unmultiply = 255.0 / data[offset + 3];
+			pixel = __clamp[Std.int (data[offset] * unmultiply)] << 24 | __clamp[Std.int (data[offset + 1] * unmultiply)] << 16 | __clamp[Std.int (data[offset + 2] * unmultiply)] << 8;
+			
+		} else {
+			
+			pixel = (data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8);
+			
+		}
+		
+		if (format == ARGB) {
+			
+			return pixel >> 8 & 0xFFFFFF;
+			
+		} else {
+			
+			return pixel;
 			
 		}
 		
@@ -616,15 +630,33 @@ class ImageDataUtil {
 	
 	public static function getPixel32 (image:Image, x:Int, y:Int, format:PixelFormat):Int {
 		
-		var pixel:RGBA;
+		var data = image.buffer.data;
+		var offset = (4 * (y + image.offsetY) * image.buffer.width + (x + image.offsetX) * 4);
+		var a = (image.transparent ? data[offset + 3] : 0xFF);
+		var r, g, b;
 		
-		pixel.readUInt8 (image.buffer.data, (4 * (y + image.offsetY) * image.buffer.width + (x + image.offsetX) * 4), image.buffer.format, image.buffer.premultiplied);
-		
-		switch (format) {
+		if (image.premultiplied && a != 0) {
 			
-			case ARGB32: return (pixel:ARGB);
-			case BGRA32: return (pixel:BGRA);
-			default: return pixel;
+			var unmultiply = 255.0 / a;
+			r = __clamp[Math.round (data[offset] * unmultiply)];
+			g = __clamp[Math.round (data[offset + 1] * unmultiply)];
+			b = __clamp[Math.round (data[offset + 2] * unmultiply)];
+			
+		} else {
+			
+			r = data[offset];
+			g = data[offset + 1];
+			b = data[offset + 2];
+			
+		}
+		
+		if (format == ARGB) {
+			
+			return a << 24 | r << 16 | g << 8 | b;
+			
+		} else {
+			
+			return r << 24 | g << 16 | b << 8 | a;
 			
 		}
 		
@@ -649,46 +681,73 @@ class ImageDataUtil {
 		#end
 		{
 			
-			var data = image.buffer.data;
-			var sourceFormat = image.buffer.format;
-			var premultiplied = image.buffer.premultiplied;
+			//#if (!js && !flash)
+			//if (rect.width == image.width && rect.height == image.height && rect.x == 0 && rect.y == 0) {
+				//
+				//byteArray.blit (0, image.buffer.data.buffer, 0, length * 4);
+				//return byteArray;
+				//
+			//}
+			//#end
 			
-			var dataView = new ImageDataView (image, rect);
-			var position, argb:ARGB, bgra:BGRA, pixel:RGBA;
+			// TODO: optimize if the rect is the same as the full buffer size
 			
-			#if !flash
-			var destPosition = 0;
+			var srcData = image.buffer.data;
+			var srcStride = Std.int (image.buffer.width * 4);
+			var srcPosition = Std.int ((rect.x * 4) + (srcStride * rect.y));
+			var srcRowOffset = srcStride - Std.int (4 * rect.width);
+			var srcRowEnd = Std.int (4 * (rect.x + rect.width));
+			
+			#if js
+			byteArray.length = length * 4;
 			#end
 			
-			for (y in 0...dataView.height) {
+			if (format == ARGB) {
 				
-				position = dataView.row (y);
-				
-				for (x in 0...dataView.width) {
+				for (i in 0...length) {
 					
-					pixel.readUInt8 (data, position, sourceFormat, premultiplied);
+					#if flash
+					byteArray.writeByte (srcData[srcPosition++]);
+					byteArray.writeByte (srcData[srcPosition++]);
+					byteArray.writeByte (srcData[srcPosition++]);
+					byteArray.writeByte (srcData[srcPosition++]);
+					#else
+					byteArray.__set (i * 4 + 1, srcData[srcPosition++]);
+					byteArray.__set (i * 4 + 2, srcData[srcPosition++]);
+					byteArray.__set (i * 4 + 3, srcData[srcPosition++]);
+					byteArray.__set (i * 4, srcData[srcPosition++]);
+					#end
 					
-					switch (format) {
+					if ((srcPosition % srcStride) > srcRowEnd) {
 						
-						case ARGB32: argb = pixel; pixel = cast argb;
-						case BGRA32: bgra = pixel; pixel = cast bgra;
-						default:
+						srcPosition += srcRowOffset;
 						
 					}
 					
+				}
+				
+			} else {
+				
+				for (i in 0...length) {
+					
 					#if flash
-					byteArray.writeByte (pixel.r);
-					byteArray.writeByte (pixel.g);
-					byteArray.writeByte (pixel.b);
-					byteArray.writeByte (pixel.a);
+					// TODO
+					byteArray.writeByte (srcData[srcPosition++]);
+					byteArray.writeByte (srcData[srcPosition++]);
+					byteArray.writeByte (srcData[srcPosition++]);
+					byteArray.writeByte (srcData[srcPosition++]);
 					#else
-					byteArray.__set (destPosition++, pixel.r);
-					byteArray.__set (destPosition++, pixel.g);
-					byteArray.__set (destPosition++, pixel.b);
-					byteArray.__set (destPosition++, pixel.a);
+					byteArray.__set (i * 4, srcData[srcPosition++]);
+					byteArray.__set (i * 4 + 1, srcData[srcPosition++]);
+					byteArray.__set (i * 4 + 2, srcData[srcPosition++]);
+					byteArray.__set (i * 4 + 3, srcData[srcPosition++]);
 					#end
 					
-					position += 4;
+					if ((srcPosition % srcStride) > srcRowEnd) {
+						
+						srcPosition += srcRowOffset;
+						
+					}
 					
 				}
 				
@@ -711,37 +770,28 @@ class ImageDataUtil {
 		#end
 		{
 			
-			var sourceView = new ImageDataView (sourceImage, sourceRect);
-			var destView = new ImageDataView (image, new Rectangle (destPoint.x, destPoint.y, sourceView.width, sourceView.height));
+			var rowOffset = Std.int (destPoint.y + image.offsetY - sourceRect.y - sourceImage.offsetY);
+			var columnOffset = Std.int (destPoint.x + image.offsetX - sourceRect.x - sourceImage.offsetY);
 			
 			var sourceData = sourceImage.buffer.data;
-			var destData = image.buffer.data;
-			var sourceFormat = sourceImage.buffer.format;
-			var destFormat = image.buffer.format;
-			var sourcePremultiplied = sourceImage.buffer.premultiplied;
-			var destPremultiplied = image.buffer.premultiplied;
+			var sourceStride = sourceImage.buffer.width * 4;
+			var sourceOffset:Int = 0;
 			
-			var sourcePosition, destPosition, sourcePixel:RGBA, destPixel:RGBA;
+			var data = image.buffer.data;
+			var stride = image.buffer.width * 4;
+			var offset:Int = 0;
 			
-			for (y in 0...destView.height) {
+			for (row in Std.int (sourceRect.top + sourceImage.offsetY)...Std.int (sourceRect.bottom + sourceImage.offsetY)) {
 				
-				sourcePosition = sourceView.row (y);
-				destPosition = destView.row (y);
-				
-				for (x in 0...destView.width) {
+				for (column in Std.int (sourceRect.left + sourceImage.offsetX)...Std.int (sourceRect.right + sourceImage.offsetX)) {
 					
-					sourcePixel.readUInt8 (sourceData, sourcePosition, sourceFormat, sourcePremultiplied);
-					destPixel.readUInt8 (destData, destPosition, destFormat, destPremultiplied);
+					sourceOffset = (row * sourceStride) + (column * 4);
+					offset = ((row + rowOffset) * stride) + ((column + columnOffset) * 4);
 					
-					destPixel.r = Std.int (((sourcePixel.r * redMultiplier) + (destPixel.r * (256 - redMultiplier))) / 256);
-					destPixel.g = Std.int (((sourcePixel.g * greenMultiplier) + (destPixel.g * (256 - greenMultiplier))) / 256);
-					destPixel.b = Std.int (((sourcePixel.b * blueMultiplier) + (destPixel.b * (256 - blueMultiplier))) / 256);
-					destPixel.a = Std.int (((sourcePixel.a * alphaMultiplier) + (destPixel.a * (256 - alphaMultiplier))) / 256);
-					
-					destPixel.writeUInt8 (destData, destPosition, destFormat, destPremultiplied);
-					
-					sourcePosition += 4;
-					destPosition += 4;
+					data[offset] = Std.int (((sourceData[offset] * redMultiplier) + (data[offset] * (256 - redMultiplier))) / 256);
+					data[offset + 1] = Std.int (((sourceData[offset + 1] * greenMultiplier) + (data[offset + 1] * (256 - greenMultiplier))) / 256);
+					data[offset + 2] = Std.int (((sourceData[offset + 2] * blueMultiplier) + (data[offset + 2] * (256 - blueMultiplier))) / 256);
+					data[offset + 3] = Std.int (((sourceData[offset + 3] * alphaMultiplier) + (data[offset + 3] * (256 - alphaMultiplier))) / 256);
 					
 				}
 				
@@ -764,14 +814,17 @@ class ImageDataUtil {
 		#end
 		{
 			
-			var format = image.buffer.format;
+			var index, a16;
 			var length = Std.int (data.length / 4);
-			var pixel:RGBA;
 			
 			for (i in 0...length) {
 				
-				pixel.readUInt8 (data, i * 4, format, false);
-				pixel.writeUInt8 (data, i * 4, format, true);
+				index = i * 4;
+				
+				a16 = __alpha16[data[index + 3]];
+				data[index] = (data[index] * a16) >> 16;
+				data[index + 1] = (data[index + 1] * a16) >> 16;
+				data[index + 2] = (data[index + 2] * a16) >> 16;
 				
 			}
 			
@@ -806,8 +859,6 @@ class ImageDataUtil {
 			for (y in 0...newHeight) {
 				
 				for (x in 0...newWidth) {
-					
-					// TODO: Handle more color formats
 					
 					u = ((x + 0.5) / newWidth) * imageWidth - 0.5;
 					v = ((y + 0.5) / newHeight) * imageHeight - 0.5;
@@ -903,21 +954,21 @@ class ImageDataUtil {
 			
 			switch (image.format) {
 				
-				case RGBA32:
+				case RGBA:
 					
 					r1 = 0;
 					g1 = 1;
 					b1 = 2;
 					a1 = 3;
 				
-				case ARGB32:
+				case ARGB:
 					
 					r1 = 1;
 					g1 = 2;
 					b1 = 3;
 					a1 = 0;
 				
-				case BGRA32:
+				case BGRA:
 					
 					r1 = 2;
 					g1 = 1;
@@ -928,21 +979,21 @@ class ImageDataUtil {
 			
 			switch (format) {
 				
-				case RGBA32:
+				case RGBA:
 					
 					r2 = 0;
 					g2 = 1;
 					b2 = 2;
 					a2 = 3;
 				
-				case ARGB32:
+				case ARGB:
 					
 					r2 = 1;
 					g2 = 2;
 					b2 = 3;
 					a2 = 0;
 				
-				case BGRA32:
+				case BGRA:
 					
 					r2 = 2;
 					g2 = 1;
@@ -977,18 +1028,14 @@ class ImageDataUtil {
 	
 	public static function setPixel (image:Image, x:Int, y:Int, color:Int, format:PixelFormat):Void {
 		
-		var pixel:RGBA;
+		var data = image.buffer.data;
+		var offset = (4 * (y + image.offsetY) * image.buffer.width + (x + image.offsetX) * 4);
+		if (format == RGBA) color = color >> 8;
 		
-		switch (format) {
-			
-			case ARGB32: pixel = (color:ARGB);
-			case BGRA32: pixel = (color:BGRA);
-			default: pixel = color;
-			
-		}
-		
-		pixel.a = 0xFF;
-		pixel.writeUInt8 (image.buffer.data, (4 * (y + image.offsetY) * image.buffer.width + (x + image.offsetX) * 4), image.buffer.format, image.buffer.premultiplied);
+		data[offset] = (color & 0xFF0000) >>> 16;
+		data[offset + 1] = (color & 0x00FF00) >>> 8;
+		data[offset + 2] = (color & 0x0000FF);
+		if (image.transparent) data[offset + 3] = (0xFF);
 		
 		image.dirty = true;
 		
@@ -997,18 +1044,42 @@ class ImageDataUtil {
 	
 	public static function setPixel32 (image:Image, x:Int, y:Int, color:Int, format:PixelFormat):Void {
 		
-		var pixel:RGBA;
+		var data = image.buffer.data;
+		var offset = (4 * (y + image.offsetY) * image.buffer.width + (x + image.offsetX) * 4);
+		var a, r, g, b;
 		
-		switch (format) {
+		if (format == ARGB) {
 			
-			case ARGB32: pixel = (color:ARGB);
-			case BGRA32: pixel = (color:BGRA);
-			default: pixel = color;
+			a = image.transparent ? (color >> 24) & 0xFF : 0xFF;
+			r = (color >> 16) & 0xFF;
+			g = (color >> 8) & 0xFF;
+			b = color & 0xFF;
+			
+		} else {
+			
+			r = (color >> 24) & 0xFF;
+			g = (color >> 16) & 0xFF;
+			b = (color >> 8) & 0xFF;
+			a = image.transparent ? color & 0xFF : 0xFF;
 			
 		}
 		
-		if (!image.transparent) pixel.a = 0xFF;
-		pixel.writeUInt8 (image.buffer.data, (4 * (y + image.offsetY) * image.buffer.width + (x + image.offsetX) * 4), image.buffer.format, image.buffer.premultiplied);
+		if (image.transparent && image.premultiplied) {
+			
+			var a16 = __alpha16[a];
+			data[offset] = (r * a16) >> 16;
+			data[offset + 1] = (g * a16) >> 16;
+			data[offset + 2] = (b * a16) >> 16;
+			data[offset + 3] = a;
+			
+		} else {
+			
+			data[offset] = r;
+			data[offset + 1] = g;
+			data[offset + 2] = b;
+			data[offset + 3] = a;
+			
+		}
 		
 		image.dirty = true;
 		
@@ -1024,31 +1095,61 @@ class ImageDataUtil {
 		#end
 		{
 			
-			var data = image.buffer.data;
-			var sourceFormat = image.buffer.format;
-			var premultiplied = image.buffer.premultiplied;
-			var dataView = new ImageDataView (image, rect);
-			var row, color, pixel:RGBA;
-			var transparent = image.transparent;
+			var len = Math.round (rect.width * rect.height);
 			
-			for (y in 0...dataView.height) {
+			//#if (!js && !flash)
+			//if (rect.width == image.width && rect.height == image.height && rect.x == 0 && rect.y == 0) {
+				//
+				//image.buffer.data.buffer.blit (0, byteArray, 0, len * 4);
+				//return;
+				//
+			//}
+			//#end
+			
+			// TODO: optimize when rect is the same as the buffer size
+			
+			var data = image.buffer.data;
+			var offset = Math.round (image.buffer.width * (rect.y + image.offsetX) + (rect.x + image.offsetY));
+			var pos = offset * 4;
+			var boundR = Math.round ((rect.x + rect.width + image.offsetX));
+			var width = image.buffer.width;
+			var color;
+			
+			if (format == ARGB) {
 				
-				row = dataView.row (y);
-				
-				for (x in 0...dataView.width) {
+				for (i in 0...len) {
 					
-					color = byteArray.readUnsignedInt ();
-					
-					switch (format) {
+					if (((pos) % (width * 4)) >= boundR * 4) {
 						
-						case ARGB32: pixel = (color:ARGB);
-						case BGRA32: pixel = (color:BGRA);
-						default: pixel = color;
+						pos += (width - boundR) * 4;
 						
 					}
 					
-					if (!transparent) pixel.a = 0xFF;
-					pixel.writeUInt8 (data, row + (x * 4), sourceFormat, premultiplied);
+					color = byteArray.readUnsignedInt ();
+					
+					data[pos++] = (color & 0xFF0000) >>> 16;
+					data[pos++] = (color & 0x0000FF00) >>> 8;
+					data[pos++] = (color & 0x000000FF);
+					data[pos++] = (color & 0xFF000000) >>> 24;
+					
+				}
+				
+			} else {
+				
+				for (i in 0...len) {
+					
+					if (((pos) % (width * 4)) >= boundR * 4) {
+						
+						pos += (width - boundR) * 4;
+						
+					}
+					
+					color = byteArray.readUnsignedInt ();
+					
+					data[pos++] = (color & 0xFF000000) >>> 24;
+					data[pos++] = (color & 0xFF0000) >>> 16;
+					data[pos++] = (color & 0x0000FF00) >>> 8;
+					data[pos++] = (color & 0x000000FF);
 					
 				}
 				
@@ -1071,14 +1172,24 @@ class ImageDataUtil {
 		#end
 		{
 			
-			var format = image.buffer.format;
+			var index, a, unmultiply;
 			var length = Std.int (data.length / 4);
-			var pixel:RGBA;
 			
 			for (i in 0...length) {
 				
-				pixel.readUInt8 (data, i * 4, format, true);
-				pixel.writeUInt8 (data, i * 4, format, false);
+				index = i * 4;
+				
+				a = data[index + 3];
+				
+				if (a != 0) {
+					
+					unmultiply = 255.0 / a;
+					
+					data[index] = __clamp[Std.int (data[index] * unmultiply)];
+					data[index + 1] = __clamp[Std.int (data[index + 1] * unmultiply)];
+					data[index + 2] = __clamp[Std.int (data[index + 2] * unmultiply)];
+					
+				}
 				
 			}
 			
@@ -1100,9 +1211,9 @@ class ImageDataUtil {
 	#if (cpp || neko || nodejs)
 	private static var lime_image_data_util_color_transform = System.load ("lime", "lime_image_data_util_color_transform", 3);
 	private static var lime_image_data_util_copy_channel = System.load ("lime", "lime_image_data_util_copy_channel", -1);
-	private static var lime_image_data_util_copy_pixels = System.load ("lime", "lime_image_data_util_copy_pixels", -1);
-	private static var lime_image_data_util_fill_rect = System.load ("lime", "lime_image_data_util_fill_rect", 4);
-	private static var lime_image_data_util_flood_fill = System.load ("lime", "lime_image_data_util_flood_fill", 5);
+	private static var lime_image_data_util_copy_pixels = System.load ("lime", "lime_image_data_util_copy_pixels", 5);
+	private static var lime_image_data_util_fill_rect = System.load ("lime", "lime_image_data_util_fill_rect", 3);
+	private static var lime_image_data_util_flood_fill = System.load ("lime", "lime_image_data_util_flood_fill", 4);
 	private static var lime_image_data_util_get_pixels = System.load ("lime", "lime_image_data_util_get_pixels", 4);
 	private static var lime_image_data_util_merge = System.load ("lime", "lime_image_data_util_merge", -1);
 	private static var lime_image_data_util_multiply_alpha = System.load ("lime", "lime_image_data_util_multiply_alpha", 1);
@@ -1111,74 +1222,6 @@ class ImageDataUtil {
 	private static var lime_image_data_util_set_pixels = System.load ("lime", "lime_image_data_util_set_pixels", 4);
 	private static var lime_image_data_util_unmultiply_alpha = System.load ("lime", "lime_image_data_util_unmultiply_alpha", 1);
 	#end
-	
-	
-}
-
-
-private class ImageDataView {
-	
-	
-	public var x (default, null):Int;
-	public var y (default, null):Int;
-	public var height (default, null):Int;
-	public var width (default, null):Int;
-	
-	private var image:Image;
-	private var offset:Int;
-	private var rect:Rectangle;
-	private var stride:Int;
-	
-	
-	public function new (image:Image, rect:Rectangle = null) {
-		
-		this.image = image;
-		
-		if (rect == null) {
-			
-			this.rect = image.rect;
-			
-		} else {
-			
-			if (rect.x < 0) rect.x = 0;
-			if (rect.y < 0) rect.y = 0;
-			if (rect.x + rect.width > image.width) rect.width = image.width - rect.x;
-			if (rect.y + rect.height > image.height) rect.height = image.height - rect.y;
-			if (rect.width < 0) rect.width = 0;
-			if (rect.height < 0) rect.height = 0;
-			this.rect = rect;
-			
-		}
-		
-		stride = image.buffer.stride;
-		
-		x = Math.ceil (this.rect.x);
-		y = Math.ceil (this.rect.y);
-		width = Math.floor (this.rect.width);
-		height = Math.floor (this.rect.height);
-		offset = (stride * (this.y + image.offsetY)) + ((this.x + image.offsetX) * 4);
-		
-	}
-	
-	
-	public function clip (x:Int, y:Int, width:Int, height:Int):Void {
-		
-		rect.__contract (x, y, width, height);
-		
-		this.x = Math.ceil (rect.x);
-		this.y = Math.ceil (rect.y);
-		this.width = Math.floor (rect.width);
-		this.height = Math.floor (rect.height);
-		offset = (stride * (this.y + image.offsetY)) + ((this.x + image.offsetX) * 4);
-		
-	}
-	
-	
-	public inline function row (y:Int):Int {
-		
-		return offset + stride * y;
-		
-	}
 	
 	
 }

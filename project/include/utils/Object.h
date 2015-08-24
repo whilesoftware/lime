@@ -8,6 +8,10 @@ namespace lime {
 	class Object {
 		
 		
+		public:
+			
+			int ref_count;
+		
 		protected:
 			
 			virtual ~Object () {}
@@ -24,25 +28,6 @@ namespace lime {
 				
 			}
 			
-			Object *IncRef () {
-				
-				ref_count++;
-				return this;
-				
-			}
-			
-			void DecRef () {
-				
-				ref_count--;
-				
-				if (ref_count <= 0) {
-					
-					delete this;
-					
-				}
-				
-			}
-			
 			void drop () { 
 				
 				ref_count--; 
@@ -52,8 +37,6 @@ namespace lime {
 				}
 				
 			}
-			
-			int ref_count;
 		
 		
 	};

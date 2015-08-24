@@ -1,7 +1,7 @@
 package lime.graphics.cairo;
 
 
-@:enum abstract CairoHintMetrics(Int) from Int to Int from UInt to UInt {
+@:enum abstract CairoHintMetrics(Int) from Int to Int {
 	
 	public var DEFAULT = 0;
 	public var OFF = 1;

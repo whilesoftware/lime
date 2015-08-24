@@ -1012,7 +1012,7 @@ class FlashHelper {
 						
 					}
 					
-					Sys.sleep (0.3);
+					Sys.sleep (1);
 					
 				}
 				

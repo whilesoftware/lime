@@ -1,7 +1,7 @@
 package lime.graphics.cairo;
 
 
-@:enum abstract CairoStatus(Int) from Int to Int from UInt to UInt {
+@:enum abstract CairoStatus(Int) from Int to Int {
 	
 	public var SUCCESS = 0;
 	public var NO_MEMORY = 1;

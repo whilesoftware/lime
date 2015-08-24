@@ -6,12 +6,7 @@ import flash.display.StageScaleMode;
 import flash.Lib;
 import lime.app.Application;
 import lime.graphics.Image;
-import lime.system.Display;
-import lime.system.System;
 import lime.ui.Window;
-
-@:access(lime.app.Application)
-@:access(lime.ui.Window)
 
 
 class FlashWindow {
@@ -30,7 +25,7 @@ class FlashWindow {
 	
 	public function close ():Void {
 		
-		parent.application.removeWindow (parent);
+		
 		
 	}
 	
@@ -39,15 +34,6 @@ class FlashWindow {
 		
 		Lib.current.stage.align = StageAlign.TOP_LEFT;
 		Lib.current.stage.scaleMode = StageScaleMode.NO_SCALE;
-		
-		parent.id = 0;
-		
-	}
-	
-	
-	public function getDisplay ():Display {
-		
-		return System.getDisplay (0);
 		
 	}
 	
@@ -97,13 +83,6 @@ class FlashWindow {
 	public function setMinimized (value:Bool):Bool {
 		
 		return false;
-		
-	}
-	
-	
-	public function setTitle (value:String):String {
-		
-		return value;
 		
 	}
 	
