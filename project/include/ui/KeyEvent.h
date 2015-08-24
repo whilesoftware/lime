@@ -3,7 +3,6 @@
 
 
 #include <hx/CFFI.h>
-#include <stdint.h>
 
 
 namespace lime {
@@ -31,7 +30,6 @@ namespace lime {
 			double keyCode;
 			int modifier;
 			KeyEventType type;
-			uint32_t windowID;
 		
 	};
 	

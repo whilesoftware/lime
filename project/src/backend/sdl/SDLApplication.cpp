@@ -15,8 +15,7 @@ namespace lime {
 	
 	AutoGCRoot* Application::callback = 0;
 	SDLApplication* SDLApplication::currentApplication = 0;
-	std::map<int, std::map<int, int> > gamepadsAxisMap;
-	const int analogAxisDeadZone = 1000;
+	
 	
 	SDLApplication::SDLApplication () {
 		
@@ -40,13 +39,13 @@ namespace lime {
 		lastUpdate = 0;
 		nextUpdate = 0;
 		
-		ApplicationEvent applicationEvent;
 		GamepadEvent gamepadEvent;
 		KeyEvent keyEvent;
 		MouseEvent mouseEvent;
 		RenderEvent renderEvent;
 		TextEvent textEvent;
 		TouchEvent touchEvent;
+		UpdateEvent updateEvent;
 		WindowEvent windowEvent;
 		
 		#ifdef HX_MACOS
@@ -102,8 +101,7 @@ namespace lime {
 			case SDL_USEREVENT:
 				
 				currentUpdate = SDL_GetTicks ();
-				applicationEvent.type = UPDATE;
-				applicationEvent.deltaTime = currentUpdate - lastUpdate;
+				updateEvent.deltaTime = currentUpdate - lastUpdate;
 				lastUpdate = currentUpdate;
 				
 				while (nextUpdate <= currentUpdate) {
@@ -112,7 +110,7 @@ namespace lime {
 					
 				}
 				
-				ApplicationEvent::Dispatch (&applicationEvent);
+				UpdateEvent::Dispatch (&updateEvent);
 				RenderEvent::Dispatch (&renderEvent);
 				break;
 			
@@ -206,6 +204,7 @@ namespace lime {
 					case SDL_WINDOWEVENT_CLOSE:
 						
 						ProcessWindowEvent (event);
+						active = false;
 						break;
 					
 				}
@@ -214,6 +213,7 @@ namespace lime {
 			
 			case SDL_QUIT:
 				
+				//quit
 				active = false;
 				break;
 			
@@ -239,36 +239,10 @@ namespace lime {
 				
 				case SDL_CONTROLLERAXISMOTION:
 					
-					if (gamepadsAxisMap[event->caxis.which].empty ()) {
-						
-						gamepadsAxisMap[event->caxis.which][event->caxis.axis] = event->caxis.value;
-						
-					} else if (gamepadsAxisMap[event->caxis.which][event->caxis.axis] == event->caxis.value) {
-							
-						break;
-						
-					}
-					
 					gamepadEvent.type = AXIS_MOVE;
 					gamepadEvent.axis = event->caxis.axis;
 					gamepadEvent.id = event->caxis.which;
-					
-					if (event->caxis.value > -analogAxisDeadZone && event->caxis.value < analogAxisDeadZone) {
-						
-						if (gamepadsAxisMap[event->caxis.which][event->caxis.axis] != 0) {
-							
-							gamepadsAxisMap[event->caxis.which][event->caxis.axis] = 0;
-							gamepadEvent.axisValue = 0;
-							GamepadEvent::Dispatch (&gamepadEvent);
-							
-						}
-						
-						break;
-						
-					}
-					
-					gamepadsAxisMap[event->caxis.which][event->caxis.axis] = event->caxis.value;
-					gamepadEvent.axisValue = event->caxis.value / (event->caxis.value>0?32767.0:32768.0);
+					gamepadEvent.axisValue = event->caxis.value / 32768.0;
 					
 					GamepadEvent::Dispatch (&gamepadEvent);
 					break;
@@ -335,7 +309,6 @@ namespace lime {
 			
 			keyEvent.keyCode = event->key.keysym.sym;
 			keyEvent.modifier = event->key.keysym.mod;
-			keyEvent.windowID = event->key.windowID;
 			
 			KeyEvent::Dispatch (&keyEvent);
 			
@@ -345,6 +318,10 @@ namespace lime {
 	
 	
 	void SDLApplication::ProcessMouseEvent (SDL_Event* event) {
+		
+		#ifdef IPHONEOS
+		return;
+		#endif
 		
 		if (MouseEvent::callback) {
 			
@@ -384,7 +361,6 @@ namespace lime {
 				
 			}
 			
-			mouseEvent.windowID = event->button.windowID;
 			MouseEvent::Dispatch (&mouseEvent);
 			
 		}
@@ -413,7 +389,7 @@ namespace lime {
 			}
 			
 			strcpy (textEvent.text, event->text.text);
-			textEvent.windowID = event->text.windowID;
+			
 			TextEvent::Dispatch (&textEvent);
 			
 		}
@@ -430,27 +406,28 @@ namespace lime {
 				case SDL_FINGERMOTION:
 					
 					touchEvent.type = TOUCH_MOVE;
+					touchEvent.x = event->tfinger.x;
+					touchEvent.y = event->tfinger.y;
+					touchEvent.id = event->tfinger.fingerId;
 					break;
 				
 				case SDL_FINGERDOWN:
 					
 					touchEvent.type = TOUCH_START;
+					touchEvent.x = event->tfinger.x;
+					touchEvent.y = event->tfinger.y;
+					touchEvent.id = event->tfinger.fingerId;
 					break;
 				
 				case SDL_FINGERUP:
 					
 					touchEvent.type = TOUCH_END;
+					touchEvent.x = event->tfinger.x;
+					touchEvent.y = event->tfinger.y;
+					touchEvent.id = event->tfinger.fingerId;
 					break;
 				
 			}
-			
-			touchEvent.x = event->tfinger.x;
-			touchEvent.y = event->tfinger.y;
-			touchEvent.id = event->tfinger.fingerId;
-			touchEvent.dx = event->tfinger.dx;
-			touchEvent.dy = event->tfinger.dy;
-			touchEvent.pressure = event->tfinger.pressure;
-			touchEvent.device = event->tfinger.touchId;
 			
 			TouchEvent::Dispatch (&touchEvent);
 			
@@ -492,7 +469,6 @@ namespace lime {
 				
 			}
 			
-			windowEvent.windowID = event->window.windowID;
 			WindowEvent::Dispatch (&windowEvent);
 			
 		}
@@ -502,8 +478,8 @@ namespace lime {
 	
 	int SDLApplication::Quit () {
 		
-		applicationEvent.type = EXIT;
-		ApplicationEvent::Dispatch (&applicationEvent);
+		windowEvent.type = WINDOW_DEACTIVATE;
+		WindowEvent::Dispatch (&windowEvent);
 		
 		SDL_Quit ();
 		

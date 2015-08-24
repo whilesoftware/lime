@@ -2,9 +2,6 @@ import ::APP_MAIN::;
 import lime.Assets;
 
 
-@:access(lime.app.Application)
-
-
 class ApplicationMain {
 	
 	
@@ -16,15 +13,13 @@ class ApplicationMain {
 	
 	public static function create ():Void {
 		
-		preloader = new ::if (PRELOADER_NAME != "")::::PRELOADER_NAME::::else::lime.app.Preloader::end:: ();
-		
 		#if !munit
 		app = new ::APP_MAIN:: ();
-		app.setPreloader (preloader);
 		app.create (config);
 		#end
 		
-		preloader.onComplete.add (start);
+		preloader = new ::if (PRELOADER_NAME != "")::::PRELOADER_NAME::::else::lime.app.Preloader::end:: ();
+		preloader.onComplete = start;
 		preloader.create (config);
 		
 		#if (js && html5)
@@ -66,37 +61,26 @@ class ApplicationMain {
 		
 		config = {
 			
-			build: "::meta.buildNumber::",
-			company: "::meta.company::",
+			antialiasing: Std.int (::WIN_ANTIALIASING::),
+			background: Std.int (::WIN_BACKGROUND::),
+			borderless: ::WIN_BORDERLESS::,
+			company: "::META_COMPANY::",
+			depthBuffer: ::WIN_DEPTH_BUFFER::,
 			file: "::APP_FILE::",
-			fps: ::WIN_FPS::,
-			name: "::meta.title::",
+			fps: Std.int (::WIN_FPS::),
+			fullscreen: ::WIN_FULLSCREEN::,
+			hardware: ::WIN_HARDWARE::,
+			height: Std.int (::WIN_HEIGHT::),
 			orientation: "::WIN_ORIENTATION::",
-			packageName: "::meta.packageName::",
-			version: "::meta.version::",
-			windows: [
-				::foreach windows::
-				{
-					antialiasing: ::antialiasing::,
-					background: ::background::,
-					borderless: ::borderless::,
-					depthBuffer: ::depthBuffer::,
-					display: ::display::,
-					fullscreen: ::fullscreen::,
-					hardware: ::hardware::,
-					height: ::height::,
-					parameters: "::parameters::",
-					resizable: ::resizable::,
-					stencilBuffer: ::stencilBuffer::,
-					title: "::title::",
-					vsync: ::vsync::,
-					width: ::width::,
-					x: ::x::,
-					y: ::y::
-				},::end::
-			]
+			packageName: "::META_PACKAGE_NAME::",
+			resizable: ::WIN_RESIZABLE::,
+			stencilBuffer: ::WIN_STENCIL_BUFFER::,
+			title: "::APP_TITLE::",
+			version: "::META_VERSION::",
+			vsync: ::WIN_VSYNC::,
+			width: Std.int (::WIN_WIDTH::),
 			
-		};
+		}
 		
 		#if (!html5 || munit)
 		create ();

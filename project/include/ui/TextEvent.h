@@ -3,7 +3,6 @@
 
 
 #include <hx/CFFI.h>
-#include <stdint.h>
 
 
 namespace lime {
@@ -32,7 +31,6 @@ namespace lime {
 			long start;
 			char text[32];
 			TextEventType type;
-			uint32_t windowID;
 		
 	};
 	

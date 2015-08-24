@@ -135,13 +135,6 @@ namespace lime {
 	}
 	
 	
-	uint32_t SDLWindow::GetID () {
-		
-		return SDL_GetWindowID (sdlWindow);
-		
-	}
-	
-	
 	int SDLWindow::GetWidth () {
 		
 		int width;
@@ -251,15 +244,6 @@ namespace lime {
 		}
 		
 		return minimized;
-		
-	}
-	
-	
-	const char* SDLWindow::SetTitle (const char* title) {
-		
-		SDL_SetWindowTitle (sdlWindow, title);
-		
-		return title;
 		
 	}
 	

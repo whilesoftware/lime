@@ -40,7 +40,6 @@ namespace lime {
 		_data = 0;
 		_length = 0;
 		_value = 0;
-		_root = 0;
 		
 	}
 	
@@ -52,7 +51,6 @@ namespace lime {
 		_data = 0;
 		_length = 0;
 		_value = 0;
-		_root = 0;
 		
 		Resize (size);
 		
@@ -62,11 +60,6 @@ namespace lime {
 	Bytes::Bytes (value bytes) {
 		
 		initialize ();
-		
-		_data = 0;
-		_length = 0;
-		_value = 0;
-		_root = 0;
 		
 		Set (bytes);
 		
@@ -80,7 +73,6 @@ namespace lime {
 		_data = 0;
 		_length = 0;
 		_value = 0;
-		_root = 0;
 		
 		FILE_HANDLE *file = lime::fopen (path, "rb");
 		
@@ -110,11 +102,6 @@ namespace lime {
 		
 		initialize ();
 		
-		_data = 0;
-		_length = 0;
-		_value = 0;
-		_root = 0;
-		
 		Set (data);
 		
 	}
@@ -122,12 +109,11 @@ namespace lime {
 	
 	Bytes::~Bytes () {
 		
-		if (_root) {
-			
-			*_root = 0;
-			free_root (_root);
-			
-		}
+		//if (!_value && _data) {
+			//
+			//free (_data);
+			//
+		//}
 		
 	}
 	
@@ -160,8 +146,6 @@ namespace lime {
 			if (!_value) {
 				
 				_value = alloc_empty_object ();
-				_root = alloc_root ();
-				*_root = _value;
 				
 			}
 			
@@ -220,20 +204,9 @@ namespace lime {
 			_data = 0;
 			_value = 0;
 			
-			if (_root) {
-				
-				*_root = 0;
-				free_root (_root);
-				
-			}
-			
-			_root = 0;
-			
 		} else {
 			
 			_value = bytes;
-			_root = alloc_root ();
-			*_root = _value;
 			_length = val_int (val_field (bytes, id_length));
 			
 			if (_length > 0) {
@@ -274,15 +247,6 @@ namespace lime {
 			
 			_data = 0;
 			_length = 0;
-			
-			if (_root) {
-				
-				*_root = 0;
-				free_root (_root);
-				
-			}
-			
-			_root = 0;
 			
 		}
 		

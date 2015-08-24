@@ -8,14 +8,11 @@ import lime.system.System;
 class CairoFont {
 	
 	
-	public static inline var FT_LOAD_FORCE_AUTOHINT = (1 << 5);
-	
 	public var font (default, null):Font;
-	
 	@:noCompletion public var handle:Dynamic;
 	
 	
-	public function new (font:Font, flags:Int = 0) {
+	public function new (font:Font) {
 		
 		#if lime_cairo
 		
@@ -23,7 +20,7 @@ class CairoFont {
 		
 		if (font != null && font.src != null) {
 			
-			handle = lime_cairo_ft_font_face_create_for_ft_face (font.src, flags);
+			handle = lime_cairo_ft_font_face_create_for_ft_face (font.src, 0);
 			
 		}
 		

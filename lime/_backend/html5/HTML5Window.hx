@@ -1,14 +1,10 @@
 package lime._backend.html5;
 
 
-import haxe.Timer;
 import js.html.CanvasElement;
 import js.html.DivElement;
-#if (haxe_ver >= 3.2)
+#if (haxe_ver >= "3.2")
 import js.html.Element;
-import js.html.FocusEvent;
-import js.html.InputElement;
-import js.html.InputEvent;
 #else
 import js.html.HtmlElement;
 #end
@@ -17,26 +13,11 @@ import js.html.TouchEvent;
 import js.Browser;
 import lime.app.Application;
 import lime.graphics.Image;
-import lime.system.Display;
-import lime.system.System;
-import lime.ui.Touch;
 import lime.ui.Window;
-
-#if (haxe_ver < 3.2)
-typedef FocusEvent = js.html.Event;
-typedef InputElement = Dynamic;
-typedef InputEvent = js.html.Event;
-#end
-
-@:access(lime.app.Application)
-@:access(lime.ui.Window)
 
 
 class HTML5Window {
 	
-	
-	private static var textInput:InputElement;
-	private static var windowID:Int = 0;
 	
 	public var canvas:CanvasElement;
 	public var div:DivElement;
@@ -45,12 +26,10 @@ class HTML5Window {
 	public var stats:Dynamic;
 	#end
 	
-	private var currentTouches = new Map<Int, Touch> ();
 	private var enableTextEvents:Bool;
 	private var parent:Window;
 	private var setHeight:Int;
 	private var setWidth:Int;
-	private var unusedTouchesPool = new List<Touch> ();
 	
 	
 	public function new (parent:Window) {
@@ -68,7 +47,7 @@ class HTML5Window {
 	
 	public function close ():Void {
 		
-		parent.application.removeWindow (parent);
+		
 		
 	}
 	
@@ -77,8 +56,6 @@ class HTML5Window {
 		
 		setWidth = parent.width;
 		setHeight = parent.height;
-		
-		parent.id = windowID++;
 		
 		if (Std.is (element, CanvasElement)) {
 			
@@ -190,39 +167,9 @@ class HTML5Window {
 	}
 	
 	
-	public function getDisplay ():Display {
-		
-		return System.getDisplay (0);
-		
-	}
-	
-	
 	public function getEnableTextEvents ():Bool {
 		
 		return enableTextEvents;
-		
-	}
-	
-	
-	private function handleFocusEvent (event:FocusEvent):Void {
-		
-		if (enableTextEvents) {
-			
-			Timer.delay (function () { textInput.focus (); }, 20);
-			
-		}
-		
-	}
-	
-	
-	private function handleInputEvent (event:InputEvent):Void {
-		
-		if (textInput.value != "") {
-			
-			parent.onTextInput.dispatch (textInput.value);
-			textInput.value = "";
-			
-		}
 		
 	}
 	
@@ -273,11 +220,11 @@ class HTML5Window {
 				
 				case "mouseenter":
 					
-					parent.onEnter.dispatch ();
+					parent.onWindowEnter.dispatch ();
 				
 				case "mouseleave":
 					
-					parent.onLeave.dispatch ();
+					parent.onWindowLeave.dispatch ();
 				
 				case "mouseup":
 					
@@ -370,131 +317,57 @@ class HTML5Window {
 		
 		event.preventDefault ();
 		
-		var rect = null;
+		var touch = event.changedTouches[0];
+		var id = touch.identifier;
+		var x = 0.0;
+		var y = 0.0;
 		
 		if (element != null) {
 			
 			if (canvas != null) {
 				
-				rect = canvas.getBoundingClientRect ();
+				var rect = canvas.getBoundingClientRect ();
+				x = (touch.clientX - rect.left) * (parent.width / rect.width);
+				y = (touch.clientY - rect.top) * (parent.height / rect.height);
 				
 			} else if (div != null) {
 				
-				rect = div.getBoundingClientRect ();
+				var rect = div.getBoundingClientRect ();
+				//eventInfo.x = (event.clientX - rect.left) * (window.div.style.width / rect.width);
+				x = (touch.clientX - rect.left);
+				//eventInfo.y = (event.clientY - rect.top) * (window.div.style.height / rect.height);
+				y = (touch.clientY - rect.top);
 				
 			} else {
 				
-				rect = element.getBoundingClientRect ();
+				var rect = element.getBoundingClientRect ();
+				x = (touch.clientX - rect.left) * (parent.width / rect.width);
+				y = (touch.clientY - rect.top) * (parent.height / rect.height);
 				
 			}
+			
+		} else {
+			
+			x = touch.clientX;
+			y = touch.clientY;
 			
 		}
 		
-		for (data in event.changedTouches) {
+		switch (event.type) {
 			
-			var x = 0.0;
-			var y = 0.0;
+			case "touchstart":
+				
+				parent.onTouchStart.dispatch (x, y, id);
 			
-			if (rect != null) {
+			case "touchmove":
 				
-				x = (data.clientX - rect.left) * (parent.width / rect.width);
-				y = (data.clientY - rect.top) * (parent.height / rect.height);
-				
-			} else {
-				
-				x = data.clientX;
-				y = data.clientY;
-				
-			}
+				parent.onTouchMove.dispatch (x, y, id);
 			
-			switch (event.type) {
+			case "touchend":
 				
-				case "touchstart":
-					
-					var touch = unusedTouchesPool.pop ();
-					
-					if (touch == null) {
-						
-						touch = new Touch (x / setWidth, y / setHeight, data.identifier, 0, 0, data.force, parent.id);
-						
-					} else {
-						
-						touch.x = x / setWidth;
-						touch.y = y / setHeight;
-						touch.id = data.identifier;
-						touch.dx = 0;
-						touch.dy = 0;
-						touch.pressure = data.force;
-						touch.device = parent.id;
-						
-					}
-					
-					currentTouches.set (data.identifier, touch);
-					
-					Touch.onStart.dispatch (touch);
-					
-					if (data == event.touches[0]) {
-						
-						parent.onMouseDown.dispatch (x, y, 0);
-						
-					}
-				
-				case "touchend":
-					
-					var touch = currentTouches.get (data.identifier);
-					
-					if (touch != null) {
-						
-						var cacheX = touch.x;
-						var cacheY = touch.y;
-						
-						touch.x = x / setWidth;
-						touch.y = y / setHeight;
-						touch.dx = touch.x - cacheX;
-						touch.dy = touch.y - cacheY;
-						touch.pressure = data.force;
-						
-						Touch.onEnd.dispatch (touch);
-						
-						currentTouches.remove (data.identifier);
-						unusedTouchesPool.add (touch);
-						
-						if (data == event.touches[0]) {
-							
-							parent.onMouseUp.dispatch (x, y, 0);
-							
-						}
-						
-					}
-				
-				case "touchmove":
-					
-					var touch = currentTouches.get (data.identifier);
-					
-					if (touch != null) {
-						
-						var cacheX = touch.x;
-						var cacheY = touch.y;
-						
-						touch.x = x / setWidth;
-						touch.y = y / setHeight;
-						touch.dx = touch.x - cacheX;
-						touch.dy = touch.y - cacheY;
-						touch.pressure = data.force;
-						
-						Touch.onMove.dispatch (touch);
-						
-						if (data == event.touches[0]) {
-							
-							parent.onMouseMove.dispatch (x, y);
-							
-						}
-						
-					}
-				
-				default:
-				
-			}
+				parent.onTouchEnd.dispatch (x, y, id);
+			
+			default:
 			
 		}
 		
@@ -516,68 +389,6 @@ class HTML5Window {
 	
 	
 	public function setEnableTextEvents (value:Bool):Bool {
-		
-		if (value) {
-			
-			if (textInput == null) {
-				
-				textInput = cast Browser.document.createElement ('input');
-				textInput.type = 'text';
-				textInput.style.position = 'absolute';
-				textInput.style.opacity = "0";
-				textInput.style.color = "transparent";
-				textInput.value = "";
-				
-				untyped textInput.autocapitalize = "off";
-				untyped textInput.autocorrect = "off";
-				textInput.autocomplete = "off";
-				
-				// TODO: Position for mobile browsers better
-				
-				textInput.style.left = "0px";
-				textInput.style.top = "50%";
-				
-				if (~/(iPad|iPhone|iPod).*OS 8_/gi.match (Browser.window.navigator.userAgent)) {
-					
-					textInput.style.fontSize = "0px";
-					textInput.style.width = '0px';
-					textInput.style.height = '0px';
-					
-				} else {
-					
-					textInput.style.width = '1px';
-					textInput.style.height = '1px';
-					
-				}
-				
-				untyped (textInput.style).pointerEvents = 'none';
-				textInput.style.zIndex = "-10000000";
-				
-				Browser.document.body.appendChild (textInput);
-				
-			}
-			
-			if (!enableTextEvents) {
-				
-				textInput.addEventListener ('input', handleInputEvent, true);
-				textInput.addEventListener ('blur', handleFocusEvent, true);
-				
-			}
-			
-			textInput.focus ();
-			
-		} else {
-			
-			if (textInput != null) {
-				
-				textInput.removeEventListener ('input', handleInputEvent, true);
-				textInput.removeEventListener ('blur', handleFocusEvent, true);
-				
-				textInput.blur ();
-				
-			}
-			
-		}
 		
 		return enableTextEvents = value;
 		
@@ -601,13 +412,6 @@ class HTML5Window {
 	public function setMinimized (value:Bool):Bool {
 		
 		return false;
-		
-	}
-	
-	
-	public function setTitle (value:String):String {
-		
-		return value;
 		
 	}
 	

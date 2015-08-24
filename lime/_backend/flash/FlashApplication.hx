@@ -15,7 +15,6 @@ import lime.audio.AudioManager;
 import lime.graphics.Renderer;
 import lime.ui.KeyCode;
 import lime.ui.KeyModifier;
-import lime.ui.Touch;
 import lime.ui.Window;
 
 @:access(lime.app.Application)
@@ -26,10 +25,8 @@ class FlashApplication {
 	
 	
 	private var cacheTime:Int;
-	private var currentTouches = new Map<Int, Touch> ();
 	private var mouseLeft:Bool;
 	private var parent:Application;
-	private var unusedTouchesPool = new List<Touch> ();
 	
 	
 	public function new (parent:Application):Void {
@@ -79,7 +76,6 @@ class FlashApplication {
 			case 105: return KeyCode.NUMPAD_9;
 			case 106: return KeyCode.NUMPAD_MULTIPLY;
 			case 107: return KeyCode.NUMPAD_PLUS;
-			case 108: return KeyCode.NUMPAD_ENTER;
 			case 109: return KeyCode.NUMPAD_MINUS;
 			case 110: return KeyCode.NUMPAD_PERIOD;
 			case 111: return KeyCode.NUMPAD_DIVIDE;
@@ -95,21 +91,9 @@ class FlashApplication {
 			case 121: return KeyCode.F10;
 			case 122: return KeyCode.F11;
 			case 123: return KeyCode.F12;
-			case 124: return KeyCode.F13;
-			case 125: return KeyCode.F14;
-			case 126: return KeyCode.F15;
 			case 144: return KeyCode.NUM_LOCK;
-			case 186: return KeyCode.SEMICOLON;
-			case 187: return KeyCode.EQUALS;
-			case 188: return KeyCode.COMMA;
-			case 189: return KeyCode.MINUS;
-			case 190: return KeyCode.PERIOD;
-			case 191: return KeyCode.SLASH;
-			case 192: return KeyCode.GRAVE;
 			case 219: return KeyCode.LEFT_BRACKET;
-			case 220: return KeyCode.BACKSLASH;
 			case 221: return KeyCode.RIGHT_BRACKET;
-			case 222: return KeyCode.SINGLE_QUOTE;
 			
 		}
 		
@@ -120,7 +104,18 @@ class FlashApplication {
 	
 	public function create (config:Config):Void {
 		
+		parent.config = config;
 		
+		if (config != null) {
+			
+			setFrameRate (config.fps);
+			var window = new Window (config);
+			var renderer = new Renderer (window);
+			parent.addWindow (window);
+			parent.addRenderer (renderer);
+			parent.init (renderer.context);
+			
+		}
 		
 	}
 	
@@ -151,18 +146,11 @@ class FlashApplication {
 		Lib.current.stage.addEventListener (Event.RESIZE, handleWindowEvent);
 		
 		cacheTime = Lib.getTimer ();
-		handleApplicationEvent (null);
+		handleUpdateEvent (null);
 		
-		Lib.current.stage.addEventListener (Event.ENTER_FRAME, handleApplicationEvent);
+		Lib.current.stage.addEventListener (Event.ENTER_FRAME, handleUpdateEvent);
 		
 		return 0;
-		
-	}
-	
-	
-	public function exit ():Void {
-		
-		
 		
 	}
 	
@@ -170,24 +158,6 @@ class FlashApplication {
 	public function getFrameRate ():Float {
 		
 		return Lib.current.stage.frameRate;
-		
-	}
-	
-	
-	private function handleApplicationEvent (event:Event):Void {
-		
-		var currentTime = Lib.getTimer ();
-		var deltaTime = currentTime - cacheTime;
-		cacheTime = currentTime;
-		
-		parent.onUpdate.dispatch (deltaTime);
-		
-		if (parent.renderer != null) {
-			
-			parent.renderer.onRender.dispatch ();
-			parent.renderer.flip ();
-			
-		}
 		
 	}
 	
@@ -203,7 +173,7 @@ class FlashApplication {
 				
 				parent.window.onKeyDown.dispatch (keyCode, modifier);
 				
-				if (parent.window != null && parent.window.enableTextEvents) {
+				if (parent.window.enableTextEvents) {
 					
 					parent.window.onTextInput.dispatch (String.fromCharCode (event.charCode));
 					
@@ -243,7 +213,7 @@ class FlashApplication {
 					if (mouseLeft) {
 						
 						mouseLeft = false;
-						parent.window.onEnter.dispatch ();
+						parent.window.onWindowEnter.dispatch ();
 						
 					}
 					
@@ -270,6 +240,7 @@ class FlashApplication {
 		
 		if (parent.window != null) {
 			
+			var id = 0;
 			var x = event.stageX;
 			var y = event.stageY;
 			
@@ -277,89 +248,35 @@ class FlashApplication {
 				
 				case TouchEvent.TOUCH_BEGIN:
 					
-					var touch = unusedTouchesPool.pop ();
-					
-					if (touch == null) {
-						
-						touch = new Touch (x / parent.window.width, y / parent.window.height, event.touchPointID, 0, 0, event.pressure, 0);
-						
-					} else {
-						
-						touch.x = x / parent.window.width;
-						touch.y = y / parent.window.height;
-						touch.id = event.touchPointID;
-						touch.dx = 0;
-						touch.dy = 0;
-						touch.pressure = event.pressure;
-						touch.device = 0;
-						
-					}
-					
-					currentTouches.set (event.touchPointID, touch);
-					
-					Touch.onStart.dispatch (touch);
-					
-					if (event.isPrimaryTouchPoint) {
-						
-						parent.window.onMouseDown.dispatch (x, y, 0);
-						
-					}
-				
-				case TouchEvent.TOUCH_END:
-					
-					var touch = currentTouches.get (event.touchPointID);
-					
-					if (touch != null) {
-						
-						var cacheX = touch.x;
-						var cacheY = touch.y;
-						
-						touch.x = x / parent.window.width;
-						touch.y = y / parent.window.height;
-						touch.dx = touch.x - cacheX;
-						touch.dy = touch.y - cacheY;
-						touch.pressure = event.pressure;
-						
-						Touch.onEnd.dispatch (touch);
-						
-						currentTouches.remove (event.touchPointID);
-						unusedTouchesPool.add (touch);
-						
-						if (event.isPrimaryTouchPoint) {
-							
-							parent.window.onMouseUp.dispatch (x, y, 0);
-							
-						}
-						
-					}
+					parent.window.onTouchStart.dispatch (x, y, id);
 				
 				case TouchEvent.TOUCH_MOVE:
 					
-					var touch = currentTouches.get (event.touchPointID);
+					parent.window.onTouchMove.dispatch (x, y, id);
+				
+				case TouchEvent.TOUCH_END:
 					
-					if (touch != null) {
-						
-						var cacheX = touch.x;
-						var cacheY = touch.y;
-						
-						touch.x = x / parent.window.width;
-						touch.y = y / parent.window.height;
-						touch.dx = touch.x - cacheX;
-						touch.dy = touch.y - cacheY;
-						touch.pressure = event.pressure;
-						
-						Touch.onMove.dispatch (touch);
-						
-						if (event.isPrimaryTouchPoint) {
-							
-							parent.window.onMouseMove.dispatch (x, y);
-							
-						}
-						
-					}
-					
+					parent.window.onTouchEnd.dispatch (x, y, id);
 				
 			}
+			
+		}
+		
+	}
+	
+	
+	private function handleUpdateEvent (event:Event):Void {
+		
+		var currentTime = Lib.getTimer ();
+		var deltaTime = currentTime - cacheTime;
+		cacheTime = currentTime;
+		
+		parent.onUpdate.dispatch (deltaTime);
+		
+		if (parent.renderer != null) {
+			
+			parent.renderer.onRender.dispatch (parent.renderer.context);
+			parent.renderer.flip ();
 			
 		}
 		
@@ -374,31 +291,31 @@ class FlashApplication {
 				
 				case Event.ACTIVATE:
 					
-					parent.window.onActivate.dispatch ();
+					parent.window.onWindowActivate.dispatch ();
 				
 				case Event.DEACTIVATE:
 					
-					parent.window.onDeactivate.dispatch ();
+					parent.window.onWindowDeactivate.dispatch ();
 				
 				case FocusEvent.FOCUS_IN:
 					
-					parent.window.onFocusIn.dispatch ();
+					parent.window.onWindowFocusIn.dispatch ();
 				
 				case FocusEvent.FOCUS_OUT:
 					
-					parent.window.onFocusOut.dispatch ();
+					parent.window.onWindowFocusOut.dispatch ();
 				
 				case Event.MOUSE_LEAVE:
 					
 					mouseLeft = true;
-					parent.window.onLeave.dispatch ();
+					parent.window.onWindowLeave.dispatch ();
 				
 				default:
 					
 					parent.window.width = Lib.current.stage.stageWidth;
 					parent.window.height = Lib.current.stage.stageHeight;
 					
-					parent.window.onResize.dispatch (parent.window.width, parent.window.height);
+					parent.window.onWindowResize.dispatch (parent.window.width, parent.window.height);
 				
 			}
 			

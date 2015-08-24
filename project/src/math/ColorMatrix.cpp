@@ -57,109 +57,65 @@ namespace lime {
 	}
 	
 	
-	float inline ColorMatrix::GetAlphaMultiplier () {
+	float ColorMatrix::GetAlphaMultiplier () {
 		
 		return data[18];
 		
 	}
 	
 	
-	float inline ColorMatrix::GetAlphaOffset () {
+	float ColorMatrix::GetAlphaOffset () {
 		
 		return data[19] * 255;
 		
 	}
 	
 	
-	void ColorMatrix::GetAlphaTable (unsigned char* table) {
-		
-		GetDataTable (table, GetAlphaMultiplier (), GetAlphaOffset ());
-		
-	}
-	
-	
-	float inline ColorMatrix::GetBlueMultiplier () {
+	float ColorMatrix::GetBlueMultiplier () {
 		
 		return data[12];
 		
 	}
 	
 	
-	float inline ColorMatrix::GetBlueOffset () {
+	float ColorMatrix::GetBlueOffset () {
 		
 		return data[14] * 255;
 		
 	}
 	
 	
-	void ColorMatrix::GetBlueTable (unsigned char* table) {
-		
-		GetDataTable (table, GetBlueMultiplier (), GetBlueOffset ());
-		
-	}
-	
-	
-	int32_t inline ColorMatrix::GetColor () {
+	int ColorMatrix::GetColor () {
 		
 		return ((int (GetRedOffset ()) << 16) | (int (GetGreenOffset ()) << 8) | int (GetBlueOffset ()));
 		
 	}
 	
 	
-	void inline ColorMatrix::GetDataTable (unsigned char* table, float multiplier, float offset) {
-		
-		int32_t value;
-		
-		for (int i = 0; i < 256; i++) {
-			
-			value = (int)(i * multiplier + offset);
-			if (value > 0xFF) value = 0xFF;
-			if (value < 0) value = 0;
-			table[i] = value;
-			
-		}
-		
-	}
-	
-	
-	float inline ColorMatrix::GetGreenMultiplier () {
+	float ColorMatrix::GetGreenMultiplier () {
 		
 		return data[6];
 		
 	}
 	
 	
-	float inline ColorMatrix::GetGreenOffset () {
+	float ColorMatrix::GetGreenOffset () {
 		
 		return data[9] * 255;
 		
 	}
 	
 	
-	void ColorMatrix::GetGreenTable (unsigned char* table) {
-		
-		GetDataTable (table, GetGreenMultiplier (), GetGreenOffset ());
-		
-	}
-	
-	
-	float inline ColorMatrix::GetRedMultiplier () {
+	float ColorMatrix::GetRedMultiplier () {
 		
 		return data[0];
 		
 	}
 	
 	
-	float inline ColorMatrix::GetRedOffset () {
+	float ColorMatrix::GetRedOffset () {
 		
 		return data[4] * 255;
-		
-	}
-	
-	
-	void ColorMatrix::GetRedTable (unsigned char* table) {
-		
-		GetDataTable (table, GetRedMultiplier (), GetRedOffset ());
 		
 	}
 	

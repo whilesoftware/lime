@@ -3,8 +3,12 @@
 
 
 #include <algorithm>
+#ifdef EPPC
+#include <memory>
+#else
+#include <memory.h>
+#endif
 #include <stdlib.h>
-#include <string.h>
 
 
 namespace lime {

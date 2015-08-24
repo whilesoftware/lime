@@ -1,7 +1,6 @@
 #ifndef LIME_SYSTEM_SYSTEM_H
 #define LIME_SYSTEM_SYSTEM_H
 
-#include <hx/CFFI.h>
 #include <stdio.h>
 
 
@@ -26,8 +25,6 @@ namespace lime {
 		public:
 			
 			static const char* GetDirectory (SystemDirectory type, const char* company, const char* title);
-			static value GetDisplay (int id);
-			static int GetNumDisplays ();
 			static double GetTimer ();
 		
 		

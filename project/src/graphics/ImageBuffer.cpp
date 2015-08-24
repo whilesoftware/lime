@@ -9,9 +9,8 @@ namespace lime {
 	static int id_data;
 	static int id_format;
 	static int id_height;
-	static int id_premultiplied;
-	static int id_transparent;
 	static int id_width;
+	static int id_transparent;
 	static bool init = false;
 	
 	
@@ -20,9 +19,8 @@ namespace lime {
 		width = 0;
 		height = 0;
 		bitsPerPixel = 32;
-		format = RGBA32;
+		format = RGBA;
 		data = 0;
-		premultiplied = false;
 		transparent = false;
 		
 	}
@@ -39,7 +37,6 @@ namespace lime {
 			id_height = val_id ("height");
 			id_data = val_id ("data");
 			id_format = val_id ("format");
-			id_premultiplied = val_id ("premultiplied");
 			init = true;
 			
 		}
@@ -51,7 +48,6 @@ namespace lime {
 		transparent = val_bool (val_field (imageBuffer, id_transparent));
 		value data_value = val_field (imageBuffer, id_data);
 		value buffer_value = val_field (data_value, id_buffer);
-		premultiplied = val_bool (val_field (imageBuffer, id_premultiplied));
 		data = new Bytes (buffer_value);
 		
 	}
@@ -123,7 +119,6 @@ namespace lime {
 			id_height = val_id ("height");
 			id_data = val_id ("data");
 			id_format = val_id ("format");
-			id_premultiplied = val_id ("premultiplied");
 			init = true;
 			
 		}
@@ -135,7 +130,6 @@ namespace lime {
 		alloc_field (mValue, id_data, data ? data->Value () : alloc_null ());
 		alloc_field (mValue, id_transparent, alloc_bool (transparent));
 		alloc_field (mValue, id_format, alloc_int (format));
-		alloc_field (mValue, id_premultiplied, alloc_bool (premultiplied));
 		return mValue;
 		
 	}

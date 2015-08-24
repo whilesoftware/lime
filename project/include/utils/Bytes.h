@@ -29,7 +29,6 @@ namespace lime {
 		
 		unsigned char *_data;
 		int _length;
-		value *_root;
 		value _value;
 		
 		

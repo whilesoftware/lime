@@ -136,7 +136,7 @@ class HXProject {
 				
 				defaultWindow.width = 0;
 				defaultWindow.height = 0;
-				defaultWindow.fps = 60;
+				defaultWindow.fps = 0;
 				
 			case ANDROID, BLACKBERRY, IOS, TIZEN, WEBOS:
 				
@@ -829,8 +829,6 @@ class HXProject {
 			
 		}
 		
-		context.meta = meta;
-		
 		for (field in Reflect.fields (meta)) {
 			
 			Reflect.setField (context, "APP_" + StringHelper.formatUppercaseVariable (field), Reflect.field (meta, field));
@@ -859,8 +857,6 @@ class HXProject {
 			
 		}
 		
-		context.windows = windows;
-		
 		for (i in 0...windows.length) {
 			
 			for (field in Reflect.fields (windows[i])) {
@@ -878,8 +874,6 @@ class HXProject {
 				Reflect.setField (context, "WINDOW_ORIENTATION_" + i, "");
 				
 			}
-			
-			windows[i].title = meta.title;
 			
 		}
 		

@@ -8,7 +8,6 @@ import lime.tools.helpers.CompatibilityHelper;
 import lime.tools.helpers.DeploymentHelper;
 import lime.tools.helpers.FileHelper;
 import lime.tools.helpers.FlashHelper;
-import lime.tools.helpers.LogHelper;
 import lime.tools.helpers.PathHelper;
 import lime.tools.helpers.PlatformHelper;
 import lime.tools.helpers.ProcessHelper;
@@ -170,12 +169,6 @@ class FlashPlatform extends PlatformTarget {
 		if (project.targetFlags.exists ("xml")) {
 			
 			project.haxeflags.push ("-xml " + targetDirectory + "/types.xml");
-			
-		}
-		
-		if (LogHelper.verbose) {
-			
-			project.haxedefs.set ("verbose", 1);
 			
 		}
 		

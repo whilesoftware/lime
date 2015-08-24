@@ -3,7 +3,6 @@ package lime._backend.native;
 
 import lime.graphics.cairo.Cairo;
 import lime.graphics.cairo.CairoFormat;
-import lime.graphics.cairo.CairoImageSurface;
 import lime.graphics.cairo.CairoSurface;
 import lime.graphics.CairoRenderContext;
 import lime.graphics.ConsoleRenderContext;
@@ -40,35 +39,23 @@ class NativeRenderer {
 		
 		handle = lime_renderer_create (parent.window.backend.handle);
 		
+		useHardware = parent.window.config.hardware;
+		
 		#if lime_console
-		
-		useHardware = true;
 		parent.context = CONSOLE (new ConsoleRenderContext ());
-		
 		#else
-		
-		var type = lime_renderer_get_type (handle);
-		
-		switch (type) {
+		if (useHardware) {
 			
-			case "opengl":
-				
-				useHardware = true;
-				parent.context = OPENGL (new GLRenderContext ());
-				parent.type = OPENGL;
+			parent.context = OPENGL (new GLRenderContext ());
 			
-			default:
-				
-				useHardware = false;
-				
-				#if lime_cairo
-				render ();
-				parent.context = CAIRO (cairo);
-				#end
-				parent.type = CAIRO;
+		} else {
+			
+			#if lime_cairo
+			render ();
+			parent.context = CAIRO (cairo);
+			#end
 			
 		}
-		
 		#end
 		
 	}
@@ -103,8 +90,6 @@ class NativeRenderer {
 	
 	public function render ():Void {
 		
-		lime_renderer_make_current (handle);
-		
 		if (!useHardware) {
 			
 			#if lime_cairo
@@ -112,23 +97,21 @@ class NativeRenderer {
 			
 			if (cacheLock == null || cacheLock.pixels != lock.pixels || cacheLock.width != lock.width || cacheLock.height != lock.height) {
 				
-				if (primarySurface != null) {
-					
+				if ( primarySurface != null )
 					primarySurface.destroy ();
-					
-				}
 				
-				primarySurface = CairoImageSurface.create (lock.pixels, CairoFormat.ARGB32, lock.width, lock.height, lock.pitch);
+				primarySurface = CairoSurface.createForData (lock.pixels, CairoFormat.ARGB32, lock.width, lock.height, lock.pitch);
 				
 				if (cairo != null) {
 					
-					cairo.recreate (primarySurface);
+					cairo.recreate( primarySurface );
 					
 				} else {
 					
 					cairo = new Cairo (primarySurface);
 					
 				}
+				
 				
 			}
 			
@@ -151,10 +134,7 @@ class NativeRenderer {
 	
 	private static var lime_renderer_create = System.load ("lime", "lime_renderer_create", 1);
 	private static var lime_renderer_flip = System.load ("lime", "lime_renderer_flip", 1);
-	private static var lime_renderer_get_context = System.load ("lime", "lime_renderer_get_context", 1);
-	private static var lime_renderer_get_type = System.load ("lime", "lime_renderer_get_type", 1);
 	private static var lime_renderer_lock = System.load ("lime", "lime_renderer_lock", 1);
-	private static var lime_renderer_make_current = System.load ("lime", "lime_renderer_make_current", 1);
 	private static var lime_renderer_unlock = System.load ("lime", "lime_renderer_unlock", 1);
 	
 	

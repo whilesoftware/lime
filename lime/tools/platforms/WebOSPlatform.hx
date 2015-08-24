@@ -13,7 +13,6 @@ import lime.tools.helpers.ProcessHelper;
 import lime.tools.helpers.WebOSHelper;
 import lime.project.AssetType;
 import lime.project.HXProject;
-import lime.project.Icon;
 import lime.project.PlatformTarget;
 import sys.io.File;
 import sys.FileSystem;
@@ -152,15 +151,7 @@ class WebOSPlatform extends PlatformTarget {
 		var context = project.templateContext;
 		context.CPP_DIR = targetDirectory + "/obj";
 		
-		var icons = project.icons;
-		
-		if (icons.length == 0) {
-			
-			icons = [ new Icon (PathHelper.findTemplate (project.templatePaths, "default/icon.svg")) ];
-			
-		}
-		
-		if (IconHelper.createIcon (icons, 64, 64, PathHelper.combine (destination, "icon.png"))) {
+		if (IconHelper.createIcon (project.icons, 64, 64, PathHelper.combine (destination, "icon.png"))) {
 			
 			context.APP_ICON = "icon.png";
 			

@@ -8,7 +8,6 @@
 
 #include <app/Application.h>
 #include <graphics/ImageBuffer.h>
-#include <stdint.h>
 
 
 namespace lime {
@@ -22,7 +21,6 @@ namespace lime {
 			virtual void Close () = 0;
 			virtual bool GetEnableTextEvents () = 0;
 			virtual int GetHeight () = 0;
-			virtual uint32_t GetID () = 0;
 			virtual int GetWidth () = 0;
 			virtual int GetX () = 0;
 			virtual int GetY () = 0;
@@ -32,7 +30,6 @@ namespace lime {
 			virtual bool SetFullscreen (bool fullscreen) = 0;
 			virtual void SetIcon (ImageBuffer *imageBuffer) = 0;
 			virtual bool SetMinimized (bool minimized) = 0;
-			virtual const char* SetTitle (const char* title) = 0;
 			
 			Application* currentApplication;
 			int flags;

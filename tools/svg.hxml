@@ -3,5 +3,6 @@
 -lib lime
 -lib openfl
 -lib svg
--D lime_cairo
+-D openfl-legacy
+-D lime-legacy
 --remap flash:openfl

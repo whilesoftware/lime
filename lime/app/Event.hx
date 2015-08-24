@@ -74,32 +74,15 @@ class Event<T> {
 	}
 	
 	
-	public function has (listener:T):Bool {
-		
-		for (l in listeners) {
-			
-			if (Reflect.compareMethods (l, listener)) return true;
-			
-		}
-		
-		return false;
-		
-	}
-	
-	
 	public function remove (listener:T):Void {
 		
-		var i = listeners.length;
+		var index = listeners.indexOf (listener);
 		
-		while (--i >= 0) {
+		if (index > -1) {
 			
-			if (Reflect.compareMethods (listeners[i], listener)) {
-				
-				listeners.splice (i, 1);
-				priorities.splice (i, 1);
-				repeat.splice (i, 1);
-				
-			}
+			listeners.splice (index, 1);
+			priorities.splice (index, 1);
+			repeat.splice (index, 1);
 			
 		}
 		

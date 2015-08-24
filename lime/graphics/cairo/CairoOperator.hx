@@ -1,7 +1,7 @@
 package lime.graphics.cairo;
 
 
-@:enum abstract CairoOperator(Int) from Int to Int from UInt to UInt {
+@:enum abstract CairoOperator(Int) from Int to Int {
 	
 	public var CLEAR = 0;
 	public var SOURCE = 1;

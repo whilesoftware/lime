@@ -53,7 +53,7 @@ package lime.utils;
             #end
     }
 
-        function toString() return this != null ? 'Float32Array [byteLength:${this.byteLength}, length:${this.length}]' : null;
+        function toString() return 'Float32Array [byteLength:${this.byteLength}, length:${this.length}]';
 
     }
 
@@ -107,7 +107,7 @@ abstract Float32Array(ArrayBufferView) from ArrayBufferView to ArrayBufferView {
 
 //Internal
 
-        function toString() return this != null ? 'Float32Array [byteLength:${this.byteLength}, length:${this.length}]' : null;
+        function toString() return 'Float32Array [byteLength:${this.byteLength}, length:${this.length}]';
 
     inline function get_length() return this.length;
 
